@@ -4,11 +4,24 @@ from scrapers.contract import RawDeal, Deal
 
 
 def normalize(raw: RawDeal) -> RawDeal:
-    """Strip/collapse whitespace in title/description; defensive date pass; never raises.
+    """Strip/collapse whitespace in title/description; defensive date pass.
 
-    STUB — implemented test-first in Milestone 2.
+    Never raises: a bad/non-datetime date becomes None.
     """
-    raise NotImplementedError("normalize is implemented in Milestone 2")
+    def _clean(s: str | None) -> str | None:
+        if s is None:
+            return None
+        return " ".join(s.split())
+
+    def _safe_dt(v: object) -> datetime | None:
+        return v if isinstance(v, datetime) else None
+
+    raw.title = _clean(raw.title) or ""
+    raw.description = _clean(raw.description)
+    raw.raw_location = _clean(raw.raw_location)
+    raw.posted_at = _safe_dt(raw.posted_at)
+    raw.expires_at = _safe_dt(raw.expires_at)
+    return raw
 
 
 def classify(raw: RawDeal) -> Deal:
