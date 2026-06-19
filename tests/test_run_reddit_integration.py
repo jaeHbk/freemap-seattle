@@ -98,3 +98,55 @@ def test_run_all_single_source_writes_rows(tmp_path, monkeypatch):
     assert run_rows[0]["source"] == "reddit"
     assert run_rows[0]["deals_found"] == 3
     assert run_rows[0]["errors"] is None
+
+
+def test_run_all_isolates_failing_source(tmp_path, monkeypatch):
+    patch_reddit(monkeypatch)
+
+    db_file = tmp_path / "deals.db"
+    conn = connect(str(db_file))
+    init_db(conn)
+
+    selftext = (
+        "Victrola Coffee Roasters is giving away free drip coffee all day. "
+        "Capitol Hill, Seattle."
+    )
+    geocoder = FakeGeocoder({selftext: (47.6231, -122.3170)})
+
+    def boom(config):
+        raise RuntimeError("source exploded")
+
+    # run_all must NOT raise even though one source throws.
+    summary = run.run_all(
+        make_config(),
+        conn,
+        geocoder,
+        NOW,
+        sources={"reddit": reddit.fetch, "boom": boom},
+    )
+
+    # reddit still succeeded and upserted its rows.
+    assert summary["reddit"]["upserted"] == 3
+    assert summary["reddit"]["errors"] is None
+
+    # boom recorded an error and upserted nothing.
+    assert summary["boom"]["upserted"] == 0
+    assert summary["boom"]["errors"] is not None
+    assert "source exploded" in summary["boom"]["errors"]
+
+    # reddit's rows actually landed in the DB despite boom failing.
+    deal_count = conn.execute("SELECT COUNT(*) AS n FROM deals").fetchone()["n"]
+    assert deal_count == 3
+
+    # scrape_runs has one row per source; boom's carries the error string.
+    run_rows = {
+        r["source"]: r
+        for r in conn.execute(
+            "SELECT source, deals_found, errors FROM scrape_runs"
+        ).fetchall()
+    }
+    assert set(run_rows.keys()) == {"reddit", "boom"}
+    assert run_rows["reddit"]["errors"] is None
+    assert run_rows["reddit"]["deals_found"] == 3
+    assert run_rows["boom"]["errors"] is not None
+    assert run_rows["boom"]["deals_found"] == 0
