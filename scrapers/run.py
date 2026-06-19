@@ -13,7 +13,7 @@ from scrapers.config import Config
 from scrapers.contract import RawDeal
 from scrapers.db import record_run
 from scrapers.pipeline import run_pipeline
-from scrapers.sources import reddit, chains, slickdeals
+from scrapers.sources import reddit, chains, slickdeals, local
 
 # Module-level registry: source name -> fetch callable.
 # Milestone 3 wires only reddit; Milestone 5 adds chains/slickdeals/local;
@@ -23,6 +23,7 @@ SOURCES: dict[str, Callable[..., list[RawDeal]]] = {
     "reddit": reddit.fetch,
     "chains": chains.fetch,
     "slickdeals": slickdeals.fetch,
+    "local": local.fetch,
 }
 
 
