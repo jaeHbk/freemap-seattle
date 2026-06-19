@@ -74,3 +74,17 @@ def test_deals_type_filter(client):
     deals = resp.json()
     assert {d["id"] for d in deals} == {2}  # only the bogo deal (id=2, in or out of bbox irrelevant w/o bbox)
     assert all(d["deal_type"] == "bogo" for d in deals)
+
+
+def test_deal_detail_returns_full_record(client):
+    resp = client.get("/api/deals/5")
+    assert resp.status_code == 200
+    deal = resp.json()
+    assert deal["id"] == 5
+    assert deal["placement"] == "online"
+    assert deal["deal_type"] == "free"
+
+
+def test_deal_detail_404_for_missing(client):
+    resp = client.get("/api/deals/9999")
+    assert resp.status_code == 404

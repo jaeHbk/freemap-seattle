@@ -150,3 +150,14 @@ def list_deals(
             continue
         out.append(deal)
     return _collapse_dedup(out)
+
+
+@app.get("/api/deals/{deal_id}")
+def deal_detail(
+    deal_id: int,
+    conn: sqlite3.Connection = Depends(get_conn),
+):
+    row = conn.execute("SELECT * FROM deals WHERE id = ?", (deal_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="deal not found")
+    return _row_to_deal(row)
