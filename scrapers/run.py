@@ -6,9 +6,11 @@ the others; every source's outcome is recorded in scrape_runs.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 
 from scrapers.config import Config
+from scrapers.contract import RawDeal
 from scrapers.db import record_run
 from scrapers.pipeline import run_pipeline
 from scrapers.sources import reddit
@@ -17,7 +19,7 @@ from scrapers.sources import reddit
 # Milestone 3 wires only reddit; Milestone 5 adds chains/slickdeals/local;
 # Milestone 6 adds the main() CLI entrypoint (which imports connect/init_db/
 # load_config/Geocoder). Keep this registry the single source of truth.
-SOURCES: dict[str, callable] = {"reddit": reddit.fetch}
+SOURCES: dict[str, Callable[..., list[RawDeal]]] = {"reddit": reddit.fetch}
 
 
 def run_all(
@@ -41,7 +43,11 @@ def run_all(
 
     summary: dict[str, dict] = {}
     for name, fetch in sources.items():
-        started_at = now
+        # scrape_runs timestamps are wall-clock so finished - started is a real
+        # duration. The injected `now` stays the pipeline's *logical* clock
+        # (freshness/last_seen); mixing it into started_at produced garbage
+        # durations (e.g. started=2020 / finished=2026).
+        started_at = datetime.now()
         try:
             raws = fetch(config)
             deals_found = len(raws)

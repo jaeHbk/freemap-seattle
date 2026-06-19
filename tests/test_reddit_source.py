@@ -84,3 +84,76 @@ def test_fetch_never_raises_on_bad_listing(monkeypatch):
     monkeypatch.setattr(httpx, "get", lambda url, *a, **k: FakeResponse({"data": {}}))
     deals = reddit.fetch(make_config())
     assert deals == []
+
+
+def test_fetch_skips_non_dict_payload(monkeypatch):
+    # Reddit returns a JSON *array* for some endpoints (e.g. comment-thread
+    # .json URLs). A non-dict payload must be skipped, not crash the fetch.
+    monkeypatch.setattr(httpx, "get", lambda url, *a, **k: FakeResponse([1, 2, 3]))
+    deals = reddit.fetch(make_config())
+    assert deals == []
+
+
+def test_fetch_isolates_bad_url_from_good_url(monkeypatch):
+    # A bad URL (non-dict payload) processed BEFORE a good one must not abort
+    # the loop: the good URL's deals must still be returned. This proves the
+    # parsing lives inside the per-URL try/except.
+    good_payload = json.loads(FIXTURE.read_text())
+
+    config = make_config()
+    config.sources["reddit"]["listing_urls"] = [
+        "https://bad.example/comments.json",  # returns a JSON array -> skipped
+        "https://good.example/listing.json",  # returns the real listing
+    ]
+
+    def fake_get(url, *args, **kwargs):
+        if url.startswith("https://bad."):
+            return FakeResponse([1, 2, 3])
+        return FakeResponse(good_payload)
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    deals = reddit.fetch(config)
+    # All 3 posts from the good URL survive despite the bad URL coming first.
+    assert {d.source_id for d in deals} == {"abc123", "def456", "ghi789"}
+
+
+def test_extract_location_ignores_substring_false_positives(monkeypatch):
+    # Ordinary online deal titles must NOT be flipped to physical by bare
+    # substrings like "ave"/"st." matching save/have/gave/leave/street-in-a-word.
+    payload = {
+        "kind": "Listing",
+        "data": {
+            "children": [
+                {
+                    "kind": "t3",
+                    "data": {
+                        "id": "fp1",
+                        "title": "Save big on a free ebook bundle",
+                        "url": "https://www.example.com/fp1",
+                        "selftext": "Have fun, gave it a read, leave a review online.",
+                        "created_utc": 1718668800,
+                    },
+                },
+                {
+                    "kind": "t3",
+                    "data": {
+                        "id": "real1",
+                        "title": "Free samples at the shop on Pike Street",
+                        "url": "https://www.example.com/real1",
+                        "selftext": "Stop by 1429 Pike Street for a freebie.",
+                        "created_utc": 1718668800,
+                    },
+                },
+            ]
+        },
+    }
+    monkeypatch.setattr(httpx, "get", lambda url, *a, **k: FakeResponse(payload))
+
+    deals = reddit.fetch(make_config())
+    by_id = {d.source_id: d for d in deals}
+
+    # False-positive case stays online (no location).
+    assert by_id["fp1"].raw_location is None
+    # Real "Street" address still resolves to a physical location.
+    assert by_id["real1"].raw_location is not None

@@ -150,3 +150,40 @@ def test_run_all_isolates_failing_source(tmp_path, monkeypatch):
     assert run_rows["reddit"]["deals_found"] == 3
     assert run_rows["boom"]["errors"] is not None
     assert run_rows["boom"]["deals_found"] == 0
+
+
+def test_run_all_records_wallclock_timestamps(tmp_path, monkeypatch):
+    # scrape_runs.started_at/finished_at must be real wall-clock times, NOT the
+    # injected logical `now`. finished >= started yields a sane (non-negative)
+    # duration; mixing now (logical) into started_at produced garbage durations.
+    patch_reddit(monkeypatch)
+
+    db_file = tmp_path / "deals.db"
+    conn = connect(str(db_file))
+    init_db(conn)
+
+    selftext = (
+        "Victrola Coffee Roasters is giving away free drip coffee all day. "
+        "Capitol Hill, Seattle."
+    )
+    geocoder = FakeGeocoder({selftext: (47.6231, -122.3170)})
+
+    run.run_all(
+        make_config(),
+        conn,
+        geocoder,
+        NOW,
+        sources={"reddit": reddit.fetch},
+    )
+
+    row = conn.execute(
+        "SELECT started_at, finished_at FROM scrape_runs WHERE source = 'reddit'"
+    ).fetchone()
+    started = datetime.fromisoformat(row["started_at"])
+    finished = datetime.fromisoformat(row["finished_at"])
+
+    # Real, non-negative duration.
+    assert finished >= started
+    # Not the injected logical clock — these are wall-clock timestamps.
+    assert started != NOW
+    assert finished != NOW
