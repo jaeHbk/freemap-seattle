@@ -74,13 +74,22 @@ def classify(raw: RawDeal) -> Deal:
 
 
 def geocode_deal(deal: Deal, geocoder) -> Deal:
-    """If placement=="physical" and geocode_status=="pending":
-    geocoder.geocode(raw_location) -> set lat/lng + status "ok"/"failed";
-    else unchanged.
+    """Resolve a physical deal's raw_location to lat/lng via the geocoder.
 
-    STUB — implemented test-first in Milestone 2.
+    Only acts when placement=="physical" and geocode_status=="pending".
+    On hit -> set lat/lng + status "ok"; on miss -> leave NULL + status "failed".
+    Online / already-resolved deals pass through unchanged.
     """
-    raise NotImplementedError("geocode_deal is implemented in Milestone 2")
+    if deal.placement == "physical" and deal.geocode_status == "pending":
+        result = geocoder.geocode(deal.raw_location) if deal.raw_location else None
+        if result is not None:
+            deal.lat, deal.lng = result
+            deal.geocode_status = "ok"
+        else:
+            deal.lat = None
+            deal.lng = None
+            deal.geocode_status = "failed"
+    return deal
 
 
 def dedup(deals: list[Deal]) -> list[Deal]:
