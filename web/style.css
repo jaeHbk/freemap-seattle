@@ -1,0 +1,65 @@
+* { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; }
+
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  background: #0f172a;
+  color: #fff;
+}
+#topbar h1 { font-size: 1.1rem; margin: 0; flex: 0 0 auto; }
+#view-toggle { display: flex; gap: 0.25rem; }
+#view-toggle button {
+  background: #1e293b;
+  color: #cbd5e1;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#view-toggle button.active { background: #2563eb; color: #fff; }
+#freshness-badge { margin-left: auto; font-size: 0.85rem; color: #94a3b8; }
+
+#layout {
+  display: flex;
+  height: calc(100% - 48px);
+}
+#filters {
+  flex: 0 0 220px;
+  padding: 1rem;
+  border-right: 1px solid #e2e8f0;
+  overflow-y: auto;
+}
+#filters h2 { font-size: 0.95rem; margin-top: 0; }
+#filters label { display: block; margin-bottom: 0.75rem; font-size: 0.85rem; }
+#filters label.checkbox { display: flex; align-items: center; gap: 0.4rem; }
+#filters select { width: 100%; padding: 0.3rem; margin-top: 0.25rem; }
+
+#map-view, #list-view { flex: 1 1 auto; height: 100%; }
+#map { height: 100%; width: 100%; }
+
+#list { padding: 1rem; overflow-y: auto; height: 100%; }
+.deal-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.deal-card.stale { opacity: 0.5; }
+.deal-card h3 { margin: 0 0 0.25rem; font-size: 1rem; }
+.deal-meta { margin: 0 0 0.5rem; font-size: 0.8rem; color: #64748b; }
+.list-empty { color: #94a3b8; }
+
+/* Map pins */
+.pin-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+.deal-pin.stale .pin-dot { box-shadow: none; }
