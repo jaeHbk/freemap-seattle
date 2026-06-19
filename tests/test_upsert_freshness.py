@@ -1,5 +1,5 @@
 # tests/test_upsert_freshness.py
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from scrapers.pipeline import compute_status
 
@@ -38,6 +38,32 @@ def test_status_expired_takes_priority_over_stale():
     expires = NOW - timedelta(hours=1)
     last_seen = NOW - timedelta(hours=100)  # also stale, but expired wins
     assert compute_status(expires, last_seen, NOW, STALE_HOURS) == "expired"
+
+
+def test_status_aware_expires_against_naive_now_does_not_raise():
+    # A timezone-AWARE expires_at (a valid ISO-8601 offset, e.g. from a chain
+    # offers page <time datetime="...-07:00">) must NOT raise TypeError when
+    # compared against a naive now. The project standardizes on naive-UTC
+    # internally; compute_status coerces aware inputs before comparing.
+    # 2026-06-25 23:59 -07:00 == 2026-06-26 06:59 UTC, which is AFTER NOW (naive,
+    # treated as UTC) -> not expired, fresh -> active.
+    aware_future = datetime(2026, 6, 25, 23, 59, 0, tzinfo=timezone(timedelta(hours=-7)))
+    last_seen = NOW - timedelta(hours=1)
+    assert compute_status(aware_future, last_seen, NOW, STALE_HOURS) == "active"
+
+
+def test_status_aware_expires_in_past_is_expired():
+    # An aware expires_at that resolves to the past (relative to naive-UTC now)
+    # is correctly classified expired, not silently swallowed.
+    aware_past = datetime(2026, 6, 18, 11, 0, 0, tzinfo=timezone.utc)  # before NOW (12:00 UTC)
+    assert compute_status(aware_past, NOW, NOW, STALE_HOURS) == "expired"
+
+
+def test_status_aware_last_seen_against_naive_now_does_not_raise():
+    # Symmetric guard: an aware last_seen must also be coerced so the staleness
+    # subtraction never raises.
+    aware_old = datetime(2026, 6, 17, 11, 0, 0, tzinfo=timezone.utc)  # 25h before NOW
+    assert compute_status(None, aware_old, NOW, STALE_HOURS) == "stale"
 
 
 # ---- upsert_deals behavior ----

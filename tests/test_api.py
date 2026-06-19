@@ -155,6 +155,37 @@ def test_deal_detail_non_integer_id_returns_422(client):
     assert resp.status_code == 422
 
 
+def test_aware_expires_at_does_not_500_the_response(client):
+    # A stored expires_at with a timezone offset (valid ISO-8601, e.g. produced by
+    # the chains source parsing <time datetime="...-07:00">) is re-parsed AWARE by
+    # the API. Without coercion in compute_status, comparing it against the naive
+    # `now` raises TypeError and 500s the WHOLE /api/deals response. It must not.
+    real_conn = app.dependency_overrides[get_conn]()
+    posted = FIXED_NOW.isoformat()
+    fresh = FIXED_NOW.isoformat()
+    # 2026-06-25 23:59 -07:00 is well after FIXED_NOW -> active, in-bbox.
+    aware_future = "2026-06-25T23:59:00-07:00"
+    real_conn.execute(
+        "INSERT INTO deals (source, source_id, dedup_key, title, url, description, "
+        "deal_type, category, placement, lat, lng, raw_location, geocode_status, "
+        "posted_at, expires_at, first_seen, last_seen, status) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "chains", "aware1", "kaware", "BOGO latte aware tz",
+            "https://example.com/aware1", "desc", "bogo", "food", "physical",
+            47.62, -122.30, "Capitol Hill", "ok", posted, aware_future,
+            posted, fresh, "active",
+        ),
+    )
+    real_conn.commit()
+
+    resp = client.get(f"/api/deals?bbox={BBOX}")
+    assert resp.status_code == 200  # not 500
+    by_sid = {d["source_id"]: d for d in resp.json()}
+    assert "aware1" in by_sid
+    assert by_sid["aware1"]["status"] == "active"
+
+
 def test_two_null_dedup_key_rows_both_survive(client):
     # Insert two active, in-bbox rows that BOTH have NULL dedup_key. They must
     # NOT collapse together (a falsy/None key means "stands alone").

@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from scrapers.contract import RawDeal, Deal
 from scrapers.db import upsert_deals
@@ -116,13 +116,33 @@ def dedup(deals: list[Deal]) -> list[Deal]:
     return deals
 
 
+def _as_naive_utc(dt: datetime | None) -> datetime | None:
+    """Coerce a datetime to naive-UTC; pass None/naive values through unchanged.
+
+    The project standardizes on naive-UTC internally. Upstream sources can yield
+    timezone-AWARE datetimes (e.g. a chain offers page <time datetime="...-07:00">
+    parsed via datetime.fromisoformat), and comparing aware vs naive raises
+    TypeError. Converting any aware value to UTC and dropping tzinfo here makes the
+    downstream comparisons total so a single aware row can never 500 the API.
+    """
+    if dt is not None and dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
 def compute_status(expires_at, last_seen, now, stale_after_hours: int) -> str:
     """Pure freshness function.
 
     "expired" if expires_at is set and in the past;
     else "stale" if (now - last_seen) > stale_after_hours hours;
     else "active".
+
+    Inputs are coerced to naive-UTC (the internal standard) so the comparison is
+    total and never raises on a mixed aware/naive pair.
     """
+    expires_at = _as_naive_utc(expires_at)
+    last_seen = _as_naive_utc(last_seen)
+    now = _as_naive_utc(now)
     if expires_at is not None and expires_at < now:
         return "expired"
     if last_seen is not None and (now - last_seen) > timedelta(hours=stale_after_hours):

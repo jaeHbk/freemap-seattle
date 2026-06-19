@@ -4,7 +4,7 @@ physical RawDeal per branch). Reads config.user_agent and config.sources["chains
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from bs4 import BeautifulSoup
@@ -20,9 +20,15 @@ def _parse_expires(time_el) -> datetime | None:
     if not raw:
         return None
     try:
-        return datetime.fromisoformat(raw)
+        dt = datetime.fromisoformat(raw)
     except ValueError:
         return None
+    # ISO-8601 offers pages may carry an offset (e.g. "...-07:00"), yielding an
+    # AWARE datetime. The project standardizes on naive-UTC internally, so coerce
+    # here at the parse boundary too (compute_status is the authoritative guard).
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 def fetch(config: Config) -> list[RawDeal]:
