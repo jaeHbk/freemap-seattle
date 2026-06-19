@@ -84,9 +84,62 @@ function markerFor(deal) {
   return marker;
 }
 
+// --- Map/list partition (pure, node-testable) -------------------------------
+// The spec splits deals two ways: the MAP shows geocoded physical deals inside
+// the current viewport; the LIST shows online + failed-geocode physical deals
+// (web/list.js belongsInList). A deal belongs to exactly one set, never both.
+//
+// The frontend fetches deals WITHOUT a bbox so the API returns coordless deals
+// (online / failed-geocode) too — the old "always send bbox" path dropped them
+// server-side, leaving the list view permanently empty. The map is instead
+// scoped to the viewport CLIENT-SIDE here.
+
+function _matchesFilters(deal, state) {
+  const fn = (typeof window !== "undefined" && window.matchesFilters) || _mf;
+  return fn(deal, state);
+}
+function _belongsInList(deal) {
+  const fn = (typeof window !== "undefined" && window.belongsInList) || _bil;
+  return fn(deal);
+}
+// Lazy node fallbacks so map.js is requirable without a browser.
+let _mf = null;
+let _bil = null;
+if (typeof window === "undefined" && typeof require !== "undefined") {
+  try { _mf = require("./filters.js").matchesFilters; } catch (e) { /* optional */ }
+  try { _bil = require("./list.js").belongsInList; } catch (e) { /* optional */ }
+}
+
+// inViewport(deal, bounds) -> true if the deal has real coords inside `bounds`
+// (a Leaflet LatLngBounds-like object exposing contains([lat, lng])).
+function inViewport(deal, bounds) {
+  if (deal.lat == null || deal.lng == null) return false;
+  return bounds.contains([deal.lat, deal.lng]);
+}
+
+// dealsForMap(deals, bounds, state) -> geocoded physical deals inside the
+// viewport that pass the active filters.
+function dealsForMap(deals, bounds, state) {
+  return deals.filter(
+    (d) =>
+      d.placement === "physical" &&
+      inViewport(d, bounds) &&
+      _matchesFilters(d, state)
+  );
+}
+
+// dealsForList(deals, state) -> online + failed-geocode physical deals that pass
+// the active filters. NOT geographically scoped (the list is not a map view).
+function dealsForList(deals, state) {
+  return deals.filter((d) => _belongsInList(d) && _matchesFilters(d, state));
+}
+
 async function fetchDeals() {
   readFilterState();
-  filterState.bbox = currentBbox();
+  // Intentionally NO bbox: the API excludes coordless deals when a bbox is
+  // present, which would hide every online / failed-geocode deal from the list.
+  // We scope the MAP to the viewport client-side in renderMap() instead.
+  filterState.bbox = "";
   const qs = window.buildQuery(filterState);
   const resp = await fetch("/api/deals?" + qs);
   lastDeals = await resp.json();
@@ -96,16 +149,16 @@ async function fetchDeals() {
 
 function renderMap() {
   clusterLayer.clearLayers();
-  for (const deal of lastDeals) {
-    if (deal.placement !== "physical") continue;
-    if (deal.lat == null || deal.lng == null) continue;
-    if (!window.matchesFilters(deal, filterState)) continue;
+  const bounds = map.getBounds();
+  for (const deal of dealsForMap(lastDeals, bounds, filterState)) {
     clusterLayer.addLayer(markerFor(deal));
   }
 }
 
 function renderListView() {
   const container = document.getElementById("list");
+  // renderList itself filters by belongsInList + matchesFilters, mirroring
+  // dealsForList; pass the full set so coordless deals reach the list.
   window.renderList(lastDeals, filterState, container);
 }
 
@@ -168,8 +221,11 @@ if (typeof document !== "undefined") {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { safeHttpUrl };
+  module.exports = { safeHttpUrl, inViewport, dealsForMap, dealsForList };
 }
 if (typeof window !== "undefined") {
   window.safeHttpUrl = safeHttpUrl;
+  window.inViewport = inViewport;
+  window.dealsForMap = dealsForMap;
+  window.dealsForList = dealsForList;
 }
