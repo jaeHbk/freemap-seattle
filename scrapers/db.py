@@ -60,30 +60,35 @@ def upsert_deals(conn, deals: list[Deal], now: datetime) -> int:
             expires_at=excluded.expires_at,
             last_seen=:now
     """
+    now_iso = now.isoformat()
     count = 0
     for d in deals:
-        params = {
-            "source": d.source,
-            "source_id": d.source_id,
-            "dedup_key": d.dedup_key,
-            "title": d.title,
-            "url": d.url,
-            "description": d.description,
-            "deal_type": d.deal_type,
-            "category": d.category,
-            "placement": d.placement,
-            "lat": d.lat,
-            "lng": d.lng,
-            "raw_location": d.raw_location,
-            "geocode_status": d.geocode_status,
-            "posted_at": d.posted_at.isoformat() if d.posted_at else None,
-            "expires_at": d.expires_at.isoformat() if d.expires_at else None,
-            "now": now.isoformat(),
-        }
         try:
+            # Build params INSIDE the try so a malformed Deal (e.g. a non-datetime
+            # posted_at that breaks serialization) is skipped per-row rather than
+            # aborting the whole batch. _to_db() is the tolerant serializer also
+            # used by record_run (single serialization path for the file).
+            params = {
+                "source": d.source,
+                "source_id": d.source_id,
+                "dedup_key": d.dedup_key,
+                "title": d.title,
+                "url": d.url,
+                "description": d.description,
+                "deal_type": d.deal_type,
+                "category": d.category,
+                "placement": d.placement,
+                "lat": d.lat,
+                "lng": d.lng,
+                "raw_location": d.raw_location,
+                "geocode_status": d.geocode_status,
+                "posted_at": _to_db(d.posted_at),
+                "expires_at": _to_db(d.expires_at),
+                "now": now_iso,
+            }
             conn.execute(sql, params)
             count += 1
-        except sqlite3.Error:
+        except (sqlite3.Error, AttributeError, TypeError, ValueError):
             continue
     conn.commit()
     return count

@@ -101,3 +101,16 @@ def test_upsert_one_bad_row_does_not_abort_batch(conn):
     ids = sorted(r["source_id"] for r in rows)
     assert ids == ["good2"]
     assert n == 1
+
+
+def test_upsert_non_datetime_posted_at_skipped_per_row(conn):
+    # A non-datetime posted_at must be caught DURING per-row param/serialization,
+    # not abort the whole batch. object() is unbindable by sqlite, so the row
+    # fails at conn.execute and is skipped; the valid rows in the same batch persist.
+    bad = _deal("bad")
+    bad.posted_at = object()  # non-datetime -> per-row skip, never aborts batch
+    n = upsert_deals(conn, [_deal("ok1"), bad, _deal("ok2")], NOW)
+    rows = fetch_all_deals(conn)
+    ids = sorted(r["source_id"] for r in rows)
+    assert ids == ["ok1", "ok2"]   # bad row skipped, valid rows persisted
+    assert n == 2                  # count reflects only successful upserts
