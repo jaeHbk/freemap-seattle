@@ -162,20 +162,29 @@ function renderListView() {
   window.renderList(lastDeals, filterState, container);
 }
 
-async function loadFreshness() {
+async function loadFreshness(retriesLeft = 3) {
+  const badge = document.getElementById("freshness-badge");
   try {
     const resp = await fetch("/api/meta");
+    if (!resp.ok) throw new Error("meta HTTP " + resp.status);
     const meta = await resp.json();
     const times = (meta.sources || [])
       .map((s) => s.last_successful_scrape)
       .filter(Boolean)
       .sort();
     const latest = times.length ? times[times.length - 1] : null;
-    document.getElementById("freshness-badge").textContent = latest
+    badge.textContent = latest
       ? "deals as of " + latest.replace("T", " ")
       : "deals as of —";
   } catch (e) {
-    document.getElementById("freshness-badge").textContent = "deals as of —";
+    // A transient failure (e.g. server still warming up on first paint) must not
+    // latch "—" forever — retry a few times with backoff before giving up.
+    if (retriesLeft > 0) {
+      badge.textContent = "deals as of …";
+      setTimeout(() => loadFreshness(retriesLeft - 1), 1000);
+    } else {
+      badge.textContent = "deals as of —";
+    }
   }
 }
 
