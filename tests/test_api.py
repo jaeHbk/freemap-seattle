@@ -91,7 +91,6 @@ def test_deal_detail_404_for_missing(client):
 
 
 def test_meta_shape_counts_and_last_scrape(client):
-    conn, _ = client.app.dependency_overrides  # noqa: not used; keep client active
     # Seed a couple of scrape_runs so meta has data to report.
     real_conn = app.dependency_overrides[get_conn]()
     real_conn.execute(
@@ -128,3 +127,57 @@ def test_static_index_served_at_root(client):
     resp = client.get("/")
     assert resp.status_code == 200
     assert "FreeMap Seattle" in resp.text
+
+
+# --- Risky-branch regression tests (review-mandated) ------------------------
+
+def test_bbox_garbage_returns_400(client):
+    resp = client.get("/api/deals?bbox=garbage")
+    assert resp.status_code == 400
+
+
+def test_bbox_wrong_arity_returns_400(client):
+    resp = client.get("/api/deals?bbox=1,2,3")
+    assert resp.status_code == 400
+
+
+def test_bbox_non_finite_returns_400(client):
+    # float("nan") parses fine, so without an explicit finite-check this would
+    # silently return results. It must be a 400.
+    resp = client.get("/api/deals?bbox=1,2,nan,4")
+    assert resp.status_code == 400
+    resp_inf = client.get("/api/deals?bbox=1,2,inf,4")
+    assert resp_inf.status_code == 400
+
+
+def test_deal_detail_non_integer_id_returns_422(client):
+    resp = client.get("/api/deals/abc")
+    assert resp.status_code == 422
+
+
+def test_two_null_dedup_key_rows_both_survive(client):
+    # Insert two active, in-bbox rows that BOTH have NULL dedup_key. They must
+    # NOT collapse together (a falsy/None key means "stands alone").
+    real_conn = app.dependency_overrides[get_conn]()
+    fresh = (FIXED_NOW).isoformat()
+    posted = (FIXED_NOW).isoformat()
+    future = "2026-12-31T00:00:00"
+    for sid, lng in (("nodup_a", -122.30), ("nodup_b", -122.31)):
+        real_conn.execute(
+            "INSERT INTO deals (source, source_id, dedup_key, title, url, description, "
+            "deal_type, category, placement, lat, lng, raw_location, geocode_status, "
+            "posted_at, expires_at, first_seen, last_seen, status) "
+            "VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "reddit", sid, f"No dedup {sid}", f"https://example.com/{sid}",
+                "desc", "free", "food", "physical", 47.62, lng, "Capitol Hill",
+                "ok", posted, future, posted, fresh, "active",
+            ),
+        )
+    real_conn.commit()
+
+    resp = client.get(f"/api/deals?bbox={BBOX}")
+    assert resp.status_code == 200
+    sids = {d["source_id"] for d in resp.json()}
+    assert "nodup_a" in sids
+    assert "nodup_b" in sids  # both survive; NULL dedup_key never collapses

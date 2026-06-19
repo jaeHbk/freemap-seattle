@@ -1,6 +1,7 @@
 """FreeMap read-only API. All business logic lives in the pipeline; this layer
 only queries SQLite and shapes JSON."""
 
+import math
 import sqlite3
 from datetime import datetime
 
@@ -29,7 +30,8 @@ def get_now() -> datetime:
 
 
 def get_stale_after_hours() -> int:
-    return load_config().stale_after_hours
+    # Reuse the module-level config loaded at import; do not re-read disk per request.
+    return _CONFIG.stale_after_hours
 
 
 # --- Helpers ----------------------------------------------------------------
@@ -88,6 +90,10 @@ def _parse_bbox(bbox: str | None):
         raise HTTPException(status_code=400, detail="bbox must be 4 floats")
     if len(parts) != 4:
         raise HTTPException(status_code=400, detail="bbox must be minLng,minLat,maxLng,maxLat")
+    # float() accepts "nan"/"inf"; reject them so a non-finite bbox is a 400, not
+    # a silently-passing comparison.
+    if not all(math.isfinite(p) for p in parts):
+        raise HTTPException(status_code=400, detail="bbox values must be finite")
     return tuple(parts)
 
 

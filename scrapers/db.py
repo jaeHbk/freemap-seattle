@@ -114,5 +114,10 @@ def record_run(
 
 
 def fetch_all_deals(conn) -> list:
-    """Return all deal rows (sqlite3.Row objects). FULLY IMPLEMENTED (not a stub)."""
-    return conn.execute("SELECT * FROM deals").fetchall()
+    """Return all deal rows (sqlite3.Row objects). FULLY IMPLEMENTED (not a stub).
+
+    Ordered by (first_seen, id) so consumers that collapse dedup_key groups get a
+    deterministic primary ("first-seen wins"); SQLite row order is otherwise
+    unspecified without an explicit ORDER BY.
+    """
+    return conn.execute("SELECT * FROM deals ORDER BY first_seen, id").fetchall()

@@ -22,24 +22,65 @@ function currentBbox() {
   return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(",");
 }
 
+// safeHttpUrl(u) -> u if it is an http(s) URL, else null. Deal data is scraped
+// from UNTRUSTED sources, so we never emit javascript:/data:/etc. as an href.
+function safeHttpUrl(u) {
+  if (typeof u !== "string") return null;
+  return /^https?:\/\//i.test(u.trim()) ? u.trim() : null;
+}
+
 function markerFor(deal) {
   const color = PIN_COLORS[deal.deal_type] || PIN_COLORS.other;
   const stale = deal.status === "stale";
+  // deal_type/status are server-enumerated, but the dot is built from a fixed
+  // template; nothing untrusted is interpolated into the divIcon HTML.
   const icon = L.divIcon({
     className: "deal-pin" + (stale ? " stale" : ""),
     html: `<span class="pin-dot" style="background:${color};opacity:${stale ? 0.4 : 1}"></span>`,
     iconSize: [16, 16],
   });
   const marker = L.marker([deal.lat, deal.lng], { icon });
-  const altLinks = (deal.alt_urls || [])
-    .map((u, i) => `<a href="${u}" target="_blank" rel="noopener">alt ${i + 1}</a>`)
-    .join(" · ");
-  marker.bindPopup(
-    `<strong>${deal.title}</strong><br>` +
-      `${deal.deal_type} · ${deal.category} · ${deal.status}<br>` +
-      `<a href="${deal.url}" target="_blank" rel="noopener">View deal</a>` +
-      (altLinks ? `<br>${altLinks}` : "")
-  );
+
+  // Build the popup as DOM (textContent) so scraped title/url can never inject
+  // markup or scripts — mirrors the XSS-safe approach in list.js.
+  const root = document.createElement("div");
+
+  const title = document.createElement("strong");
+  title.textContent = deal.title || "";
+  root.appendChild(title);
+  root.appendChild(document.createElement("br"));
+
+  const meta = document.createElement("span");
+  meta.textContent = `${deal.deal_type} · ${deal.category} · ${deal.status}`;
+  root.appendChild(meta);
+  root.appendChild(document.createElement("br"));
+
+  const safeUrl = safeHttpUrl(deal.url);
+  if (safeUrl) {
+    const link = document.createElement("a");
+    link.href = safeUrl;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "View deal";
+    root.appendChild(link);
+  } else {
+    const plain = document.createElement("span");
+    plain.textContent = "View deal (link unavailable)";
+    root.appendChild(plain);
+  }
+
+  const altUrls = (deal.alt_urls || []).map(safeHttpUrl).filter(Boolean);
+  altUrls.forEach((u, i) => {
+    root.appendChild(document.createElement("br"));
+    const alt = document.createElement("a");
+    alt.href = u;
+    alt.target = "_blank";
+    alt.rel = "noopener";
+    alt.textContent = "alt " + (i + 1);
+    root.appendChild(alt);
+  });
+
+  marker.bindPopup(root);
   return marker;
 }
 
@@ -120,4 +161,15 @@ function init() {
   fetchDeals(); // initial load (moveend may not fire on first render)
 }
 
-document.addEventListener("DOMContentLoaded", init);
+// Wire up only in a real browser. Guarded so the pure helpers (e.g. safeHttpUrl)
+// can be required in Node-run unit tests where `document` does not exist.
+if (typeof document !== "undefined") {
+  document.addEventListener("DOMContentLoaded", init);
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { safeHttpUrl };
+}
+if (typeof window !== "undefined") {
+  window.safeHttpUrl = safeHttpUrl;
+}
