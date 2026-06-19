@@ -88,3 +88,37 @@ def test_deal_detail_returns_full_record(client):
 def test_deal_detail_404_for_missing(client):
     resp = client.get("/api/deals/9999")
     assert resp.status_code == 404
+
+
+def test_meta_shape_counts_and_last_scrape(client):
+    conn, _ = client.app.dependency_overrides  # noqa: not used; keep client active
+    # Seed a couple of scrape_runs so meta has data to report.
+    real_conn = app.dependency_overrides[get_conn]()
+    real_conn.execute(
+        "INSERT INTO scrape_runs (source, started_at, finished_at, deals_found, errors) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("reddit", "2026-06-18T06:00:00", "2026-06-18T06:01:00", 4, None),
+    )
+    real_conn.execute(
+        "INSERT INTO scrape_runs (source, started_at, finished_at, deals_found, errors) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("reddit", "2026-06-18T11:00:00", "2026-06-18T11:01:00", 5, None),
+    )
+    real_conn.execute(
+        "INSERT INTO scrape_runs (source, started_at, finished_at, deals_found, errors) "
+        "VALUES (?, ?, ?, ?, ?)",
+        ("slickdeals", "2026-06-18T11:00:00", None, 0, "boom"),
+    )
+    real_conn.commit()
+
+    resp = client.get("/api/meta")
+    assert resp.status_code == 200
+    meta = resp.json()
+    assert "sources" in meta
+    by_source = {s["source"]: s for s in meta["sources"]}
+    # reddit: total deals currently in deals table + last SUCCESSFUL scrape time
+    assert by_source["reddit"]["last_successful_scrape"] == "2026-06-18T11:01:00"
+    # slickdeals errored -> last_successful_scrape is None
+    assert by_source["slickdeals"]["last_successful_scrape"] is None
+    # deal_count per source reflects rows in deals table
+    assert by_source["reddit"]["deal_count"] == 3  # ids 1, 3, 6 are reddit

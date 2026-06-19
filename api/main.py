@@ -161,3 +161,32 @@ def deal_detail(
     if row is None:
         raise HTTPException(status_code=404, detail="deal not found")
     return _row_to_deal(row)
+
+
+@app.get("/api/meta")
+def meta(conn: sqlite3.Connection = Depends(get_conn)):
+    # Per-source deal counts from the serving table.
+    count_rows = conn.execute(
+        "SELECT source, COUNT(*) AS n FROM deals GROUP BY source"
+    ).fetchall()
+    counts = {r["source"]: r["n"] for r in count_rows}
+
+    # Last SUCCESSFUL scrape (errors IS NULL) per source from scrape_runs.
+    run_rows = conn.execute(
+        "SELECT source, MAX(finished_at) AS last_ok "
+        "FROM scrape_runs WHERE errors IS NULL AND finished_at IS NOT NULL "
+        "GROUP BY source"
+    ).fetchall()
+    last_ok = {r["source"]: r["last_ok"] for r in run_rows}
+
+    sources = sorted(set(counts) | set(last_ok))
+    return {
+        "sources": [
+            {
+                "source": s,
+                "deal_count": counts.get(s, 0),
+                "last_successful_scrape": last_ok.get(s),
+            }
+            for s in sources
+        ]
+    }
