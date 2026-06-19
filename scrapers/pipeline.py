@@ -2,6 +2,7 @@ import hashlib
 from datetime import datetime, timedelta
 
 from scrapers.contract import RawDeal, Deal
+from scrapers.db import upsert_deals
 
 
 def normalize(raw: RawDeal) -> RawDeal:
@@ -122,10 +123,19 @@ def compute_status(expires_at, last_seen, now, stale_after_hours: int) -> str:
 
 
 def run_pipeline(raws: list[RawDeal], geocoder, conn, now) -> int:
-    """For each raw: try/except (one bad row never aborts the batch) ->
-    normalize -> classify -> geocode_deal; collect; dedup; upsert_deals; return count.
-
-    STUB ONLY — FULLY IMPLEMENTED (NOT a stub) in Milestone 2. Present now so the
-    package imports cleanly. Must NOT remain NotImplementedError after Milestone 2.
+    """Chain every raw through normalize -> classify -> geocode_deal with per-row
+    try/except (one bad row never aborts the batch), then dedup the survivors and
+    upsert them. Returns the number of rows upserted. FULLY IMPLEMENTED (not a stub).
     """
-    raise NotImplementedError("run_pipeline is implemented in Milestone 2")
+    deals: list[Deal] = []
+    for raw in raws:
+        try:
+            normalized = normalize(raw)
+            deal = classify(normalized)
+            deal = geocode_deal(deal, geocoder)
+            deals.append(deal)
+        except Exception:
+            # One malformed raw must not abort the batch.
+            continue
+    deals = dedup(deals)
+    return upsert_deals(conn, deals, now)
