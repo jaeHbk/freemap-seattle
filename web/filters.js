@@ -15,11 +15,24 @@ function buildQuery(state) {
   return params.join("&");
 }
 
-// matchesFilters added in the next task.
+// matchesFilters(deal, state) -> bool. Client-side guard mirroring server filters
+// so a deal already in memory can be re-checked without a refetch. includeStale
+// gates stale deals; expired deals never match (server already excludes them, but
+// we defend here too).
+function matchesFilters(deal, state) {
+  state = state || {};
+  if (deal.status === "expired") return false;
+  if (deal.status === "stale" && !state.includeStale) return false;
+  if (state.type && deal.deal_type !== state.type) return false;
+  if (state.category && deal.category !== state.category) return false;
+  if (state.placement && deal.placement !== state.placement) return false;
+  return true;
+}
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { buildQuery };
+  module.exports = { buildQuery, matchesFilters };
 }
 if (typeof window !== "undefined") {
   window.buildQuery = buildQuery;
+  window.matchesFilters = matchesFilters;
 }
