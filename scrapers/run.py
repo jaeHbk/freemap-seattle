@@ -7,6 +7,7 @@ the others; every source's outcome is recorded in scrape_runs.
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Callable
 from datetime import datetime
 
@@ -94,37 +95,53 @@ def main(argv=None) -> int:
     )
     args = parser.parse_args(argv)
 
-    config = load_config(args.config)
+    try:
+        config = load_config(args.config)
+    except (FileNotFoundError, OSError):
+        print(f"config not found: {args.config}", file=sys.stderr)
+        return 1
+
     db_path = args.db if args.db is not None else config.db_path
 
     conn = connect(db_path)
     init_db(conn)
 
-    geocoder = Geocoder(
-        conn,
-        user_agent=config.user_agent,
-        min_interval_seconds=config.geocoder_min_interval_seconds,
-        max_live_calls=config.geocoder_max_live_calls,
-    )
+    try:
+        geocoder = Geocoder(
+            conn,
+            user_agent=config.user_agent,
+            min_interval_seconds=config.geocoder_min_interval_seconds,
+            max_live_calls=config.geocoder_max_live_calls,
+        )
 
-    now = datetime.now()
-    summary = run_all(config, conn, geocoder, now)
+        now = datetime.now()
+        summary = run_all(config, conn, geocoder, now)
 
-    print(f"FreeMap scrape — metro={config.metro} db={db_path} at {now.isoformat()}")
-    any_success = False
-    for name, result in summary.items():
-        deals_found = result["deals_found"]
-        upserted = result["upserted"]
-        errors = result["errors"]
-        if errors is None:
-            any_success = True
-            flag = " [0 FOUND]" if deals_found == 0 else ""
-            print(f"  {name}: found={deals_found} upserted={upserted} ok{flag}")
-        else:
-            print(f"  {name}: found={deals_found} upserted={upserted} ERROR: {errors}")
+        print(
+            f"FreeMap scrape — metro={config.metro} db={db_path} at {now.isoformat()}"
+        )
 
-    conn.close()
-    return 0 if any_success else 1
+        if not summary:
+            print("  (no sources enabled — nothing to scrape)")
+            return 1
+
+        any_success = False
+        for name, result in summary.items():
+            deals_found = result["deals_found"]
+            upserted = result["upserted"]
+            errors = result["errors"]
+            if errors is None:
+                any_success = True
+                flag = " [0 FOUND]" if deals_found == 0 else ""
+                print(f"  {name}: found={deals_found} upserted={upserted} ok{flag}")
+            else:
+                print(
+                    f"  {name}: found={deals_found} upserted={upserted} ERROR: {errors}"
+                )
+
+        return 0 if any_success else 1
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

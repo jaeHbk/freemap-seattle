@@ -25,6 +25,14 @@ def test_help_exits_zero():
     assert "--config" in result.stdout
 
 
+def test_missing_config_clean_error(capsys):
+    """A missing --config exits 1 with a clean stderr message, no traceback."""
+    exit_code = run_module.main(["--config", "/nonexistent-freemap.toml"])
+    assert exit_code == 1
+    captured = capsys.readouterr()
+    assert "config not found: /nonexistent-freemap.toml" in captured.err
+
+
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 # URL -> fixture filename. The temp config.toml below sets these exact URLs so
