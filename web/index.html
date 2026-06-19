@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FreeMap Seattle</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+  />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <h1>FreeMap Seattle</h1>
+    <nav id="view-toggle">
+      <button id="btn-map" class="active" type="button">Map</button>
+      <button id="btn-list" type="button">List</button>
+    </nav>
+    <span id="freshness-badge">deals as of …</span>
+  </header>
+
+  <main id="layout">
+    <aside id="filters">
+      <h2>Filters</h2>
+      <label>Deal type
+        <select id="filter-type">
+          <option value="">All</option>
+          <option value="free">Free</option>
+          <option value="bogo">BOGO</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label>Category
+        <select id="filter-category">
+          <option value="">All</option>
+          <option value="food">Food</option>
+          <option value="retail">Retail</option>
+          <option value="event">Event</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+      <label class="checkbox">
+        <input id="filter-stale" type="checkbox" /> Show stale
+      </label>
+    </aside>
+
+    <section id="map-view"><div id="map"></div></section>
+    <section id="list-view" hidden><div id="list"></div></section>
+  </main>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <script src="/filters.js"></script>
+  <script src="/list.js"></script>
+  <script src="/map.js"></script>
+</body>
+</html>

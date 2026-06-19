@@ -1,0 +1,189 @@
+import json
+from datetime import datetime
+from pathlib import Path
+
+import httpx
+
+from scrapers.config import Config
+from scrapers.db import connect, init_db
+from scrapers.geocode import FakeGeocoder
+from scrapers.sources import reddit
+from scrapers import run
+
+FIXTURE = Path(__file__).parent / "fixtures" / "reddit_sample.json"
+NOW = datetime(2026, 6, 18, 12, 0, 0)
+
+
+def make_config() -> Config:
+    return Config(
+        metro="seattle",
+        db_path=":memory:",
+        stale_after_hours=24,
+        user_agent="FreeMapSeattle/1.0 (test)",
+        geocoder_min_interval_seconds=1.0,
+        geocoder_max_live_calls=200,
+        sources_enabled=["reddit"],
+        sources={"reddit": {"listing_urls": ["https://www.reddit.com/r/Seattle/.json"]}},
+    )
+
+
+def patch_reddit(monkeypatch):
+    payload = json.loads(FIXTURE.read_text())
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    monkeypatch.setattr(httpx, "get", lambda url, *a, **k: FakeResponse())
+
+
+def test_run_all_single_source_writes_rows(tmp_path, monkeypatch):
+    patch_reddit(monkeypatch)
+
+    db_file = tmp_path / "deals.db"
+    conn = connect(str(db_file))
+    init_db(conn)
+
+    # Seed the geocoder so the physical coffee deal resolves to a Seattle point.
+    selftext = (
+        "Victrola Coffee Roasters is giving away free drip coffee all day. "
+        "Capitol Hill, Seattle."
+    )
+    geocoder = FakeGeocoder({selftext: (47.6231, -122.3170)})
+
+    summary = run.run_all(
+        make_config(),
+        conn,
+        geocoder,
+        NOW,
+        sources={"reddit": reddit.fetch},
+    )
+
+    # Canonical return shape.
+    assert set(summary.keys()) == {"reddit"}
+    assert summary["reddit"]["deals_found"] == 3
+    assert summary["reddit"]["upserted"] == 3
+    assert summary["reddit"]["errors"] is None
+
+    rows = conn.execute(
+        "SELECT source_id, deal_type, placement, geocode_status, lat, lng "
+        "FROM deals ORDER BY source_id"
+    ).fetchall()
+    by_id = {r["source_id"]: r for r in rows}
+    assert len(by_id) == 3
+
+    coffee = by_id["abc123"]
+    assert coffee["deal_type"] == "free"
+    assert coffee["placement"] == "physical"
+    assert coffee["geocode_status"] == "ok"
+    assert coffee["lat"] == 47.6231
+    assert coffee["lng"] == -122.3170
+
+    ebook = by_id["def456"]
+    assert ebook["deal_type"] == "free"
+    assert ebook["placement"] == "online"
+
+    bogo = by_id["ghi789"]
+    assert bogo["deal_type"] == "bogo"
+    assert bogo["placement"] == "online"
+
+    # A scrape_runs row was recorded for the source.
+    run_rows = conn.execute(
+        "SELECT source, deals_found, errors FROM scrape_runs"
+    ).fetchall()
+    assert len(run_rows) == 1
+    assert run_rows[0]["source"] == "reddit"
+    assert run_rows[0]["deals_found"] == 3
+    assert run_rows[0]["errors"] is None
+
+
+def test_run_all_isolates_failing_source(tmp_path, monkeypatch):
+    patch_reddit(monkeypatch)
+
+    db_file = tmp_path / "deals.db"
+    conn = connect(str(db_file))
+    init_db(conn)
+
+    selftext = (
+        "Victrola Coffee Roasters is giving away free drip coffee all day. "
+        "Capitol Hill, Seattle."
+    )
+    geocoder = FakeGeocoder({selftext: (47.6231, -122.3170)})
+
+    def boom(config):
+        raise RuntimeError("source exploded")
+
+    # run_all must NOT raise even though one source throws.
+    summary = run.run_all(
+        make_config(),
+        conn,
+        geocoder,
+        NOW,
+        sources={"reddit": reddit.fetch, "boom": boom},
+    )
+
+    # reddit still succeeded and upserted its rows.
+    assert summary["reddit"]["upserted"] == 3
+    assert summary["reddit"]["errors"] is None
+
+    # boom recorded an error and upserted nothing.
+    assert summary["boom"]["upserted"] == 0
+    assert summary["boom"]["errors"] is not None
+    assert "source exploded" in summary["boom"]["errors"]
+
+    # reddit's rows actually landed in the DB despite boom failing.
+    deal_count = conn.execute("SELECT COUNT(*) AS n FROM deals").fetchone()["n"]
+    assert deal_count == 3
+
+    # scrape_runs has one row per source; boom's carries the error string.
+    run_rows = {
+        r["source"]: r
+        for r in conn.execute(
+            "SELECT source, deals_found, errors FROM scrape_runs"
+        ).fetchall()
+    }
+    assert set(run_rows.keys()) == {"reddit", "boom"}
+    assert run_rows["reddit"]["errors"] is None
+    assert run_rows["reddit"]["deals_found"] == 3
+    assert run_rows["boom"]["errors"] is not None
+    assert run_rows["boom"]["deals_found"] == 0
+
+
+def test_run_all_records_wallclock_timestamps(tmp_path, monkeypatch):
+    # scrape_runs.started_at/finished_at must be real wall-clock times, NOT the
+    # injected logical `now`. finished >= started yields a sane (non-negative)
+    # duration; mixing now (logical) into started_at produced garbage durations.
+    patch_reddit(monkeypatch)
+
+    db_file = tmp_path / "deals.db"
+    conn = connect(str(db_file))
+    init_db(conn)
+
+    selftext = (
+        "Victrola Coffee Roasters is giving away free drip coffee all day. "
+        "Capitol Hill, Seattle."
+    )
+    geocoder = FakeGeocoder({selftext: (47.6231, -122.3170)})
+
+    run.run_all(
+        make_config(),
+        conn,
+        geocoder,
+        NOW,
+        sources={"reddit": reddit.fetch},
+    )
+
+    row = conn.execute(
+        "SELECT started_at, finished_at FROM scrape_runs WHERE source = 'reddit'"
+    ).fetchone()
+    started = datetime.fromisoformat(row["started_at"])
+    finished = datetime.fromisoformat(row["finished_at"])
+
+    # Real, non-negative duration.
+    assert finished >= started
+    # Not the injected logical clock — these are wall-clock timestamps.
+    assert started != NOW
+    assert finished != NOW

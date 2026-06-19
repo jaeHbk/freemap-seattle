@@ -1,0 +1,45 @@
+{
+  "kind": "Listing",
+  "data": {
+    "after": null,
+    "before": null,
+    "children": [
+      {
+        "kind": "t3",
+        "data": {
+          "id": "abc123",
+          "title": "Free coffee at Victrola Coffee on Capitol Hill today only",
+          "permalink": "/r/Seattle/comments/abc123/free_coffee/",
+          "url": "https://www.reddit.com/r/Seattle/comments/abc123/free_coffee/",
+          "selftext": "Victrola Coffee Roasters is giving away free drip coffee all day. Capitol Hill, Seattle.",
+          "created_utc": 1718668800,
+          "subreddit": "Seattle"
+        }
+      },
+      {
+        "kind": "t3",
+        "data": {
+          "id": "def456",
+          "title": "Free ebook download from O'Reilly this week",
+          "permalink": "/r/Seattle/comments/def456/free_ebook/",
+          "url": "https://www.example.com/free-ebook",
+          "selftext": "Grab a free programming ebook online, no strings attached.",
+          "created_utc": 1718582400,
+          "subreddit": "Seattle"
+        }
+      },
+      {
+        "kind": "t3",
+        "data": {
+          "id": "ghi789",
+          "title": "Buy one get one free movie tickets online",
+          "permalink": "/r/Seattle/comments/ghi789/bogo_movie/",
+          "url": "https://www.example.com/bogo-tickets",
+          "selftext": "BOGO movie tickets through the app, redeem online.",
+          "created_utc": 1718496000,
+          "subreddit": "Seattle"
+        }
+      }
+    ]
+  }
+}

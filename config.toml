@@ -1,0 +1,30 @@
+[meta]
+metro = "seattle"
+db_path = "db/deals.db"
+user_agent = "FreeMapSeattle/1.0 (contact: freemap@example.com)"
+sources_enabled = ["reddit", "chains", "slickdeals", "local"]
+
+[freshness]
+stale_after_hours = 24
+
+[geocoder]
+min_interval_seconds = 1.0
+max_live_calls = 200
+
+[sources.reddit]
+subreddits = ["Seattle"]
+listing_urls = ["https://www.reddit.com/r/Seattle/.json"]
+
+[sources.chains]
+offers_urls = ["https://seattlebeans.example/offers"]
+
+[sources.chains.branches]
+"Capitol Hill" = "1429 12th Ave, Seattle, WA 98122"
+"Ballard" = "5402 22nd Ave NW, Seattle, WA 98107"
+"Fremont" = "3501 Fremont Ave N, Seattle, WA 98103"
+
+[sources.slickdeals]
+listing_urls = ["https://slickdeals.example/deals/free"]
+
+[sources.local]
+feed_urls = ["https://localdeals.example/seattle/feed.xml"]
