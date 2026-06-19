@@ -122,3 +122,9 @@ def test_meta_shape_counts_and_last_scrape(client):
     assert by_source["slickdeals"]["last_successful_scrape"] is None
     # deal_count per source reflects rows in deals table
     assert by_source["reddit"]["deal_count"] == 3  # ids 1, 3, 6 are reddit
+
+
+def test_static_index_served_at_root(client):
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "FreeMap Seattle" in resp.text

@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 
 from scrapers.config import load_config
 from scrapers.db import connect, fetch_all_deals
@@ -190,3 +191,7 @@ def meta(conn: sqlite3.Connection = Depends(get_conn)):
             for s in sources
         ]
     }
+
+
+# Mount LAST so /api/* routes take precedence over the static catch-all.
+app.mount("/", StaticFiles(directory="web", html=True), name="web")
