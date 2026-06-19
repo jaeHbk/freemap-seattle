@@ -25,12 +25,52 @@ def normalize(raw: RawDeal) -> RawDeal:
 
 
 def classify(raw: RawDeal) -> Deal:
-    """Derive deal_type, placement, category; lat=lng=None;
-    geocode_status="n/a" if online else "pending".
+    """Derive deal_type, placement, category from a (normalized) RawDeal.
 
-    STUB — implemented test-first in Milestone 2.
+    Ambiguous inputs fall back to safe defaults ("other"/"online").
+    lat=lng=None always; geocode_status is "n/a" for online, "pending" for physical.
     """
-    raise NotImplementedError("classify is implemented in Milestone 2")
+    text = " ".join(p for p in (raw.title, raw.description) if p).lower()
+
+    # deal_type: BOGO beats "free"; then discount-ish -> other; else other.
+    if any(k in text for k in ("buy one", "bogo", "b1g1")):
+        deal_type = "bogo"
+    elif "free" in text:
+        deal_type = "free"
+    elif any(k in text for k in ("% off", "discount", "sale")):
+        deal_type = "other"
+    else:
+        deal_type = "other"
+
+    placement = "physical" if raw.raw_location else "online"
+
+    if any(k in text for k in ("food", "coffee", "burrito", "pizza", "drink", "meal")):
+        category = "food"
+    elif any(k in text for k in ("event", "show", "concert", "festival")):
+        category = "event"
+    elif any(k in text for k in ("store", "retail", "clothing", "shoes")):
+        category = "retail"
+    else:
+        category = "other"
+
+    geocode_status = "pending" if placement == "physical" else "n/a"
+
+    return Deal(
+        source=raw.source,
+        source_id=raw.source_id,
+        title=raw.title,
+        url=raw.url,
+        description=raw.description,
+        deal_type=deal_type,
+        category=category,
+        placement=placement,
+        lat=None,
+        lng=None,
+        raw_location=raw.raw_location,
+        geocode_status=geocode_status,
+        posted_at=raw.posted_at,
+        expires_at=raw.expires_at,
+    )
 
 
 def geocode_deal(deal: Deal, geocoder) -> Deal:
