@@ -63,3 +63,88 @@ def test_geocode_deal_skips_already_resolved_physical():
     # status not "pending" -> unchanged
     assert out.lat == 1.0 and out.lng == 2.0
     assert out.geocode_status == "ok"
+
+
+# ---- real Geocoder cache-first behavior ----
+from scrapers.db import connect, init_db
+from scrapers.geocode import Geocoder
+
+
+def _conn():
+    c = connect(":memory:")
+    init_db(c)
+    return c
+
+
+def test_geocoder_cache_hit_no_live_call(monkeypatch):
+    c = _conn()
+    c.execute(
+        "INSERT INTO geocode_cache(raw_location, lat, lng, status) VALUES (?,?,?,?)",
+        ("Capitol Hill", 47.6, -122.3, "ok"),
+    )
+    c.commit()
+    g = Geocoder(c, user_agent="freemap-test", min_interval_seconds=0.0)
+
+    def _boom(*a, **k):
+        raise AssertionError("live geocode must NOT be called on a cache hit")
+
+    monkeypatch.setattr(g, "_live_geocode", _boom)
+    assert g.geocode("Capitol Hill") == (47.6, -122.3)
+
+
+def test_geocoder_cache_miss_calls_live_then_caches(monkeypatch):
+    c = _conn()
+    g = Geocoder(c, user_agent="freemap-test", min_interval_seconds=0.0)
+    calls = []
+
+    def _fake_live(loc):
+        calls.append(loc)
+        return (1.0, 2.0)
+
+    monkeypatch.setattr(g, "_live_geocode", _fake_live)
+
+    assert g.geocode("Fremont") == (1.0, 2.0)
+    assert calls == ["Fremont"]
+
+    # second call is served from cache -> no further live call
+    assert g.geocode("Fremont") == (1.0, 2.0)
+    assert calls == ["Fremont"]
+
+    row = c.execute(
+        "SELECT lat, lng, status FROM geocode_cache WHERE raw_location=?",
+        ("Fremont",),
+    ).fetchone()
+    assert (row["lat"], row["lng"], row["status"]) == (1.0, 2.0, "ok")
+
+
+def test_geocoder_cached_failure_returns_none_no_live_call(monkeypatch):
+    c = _conn()
+    c.execute(
+        "INSERT INTO geocode_cache(raw_location, lat, lng, status) VALUES (?,?,?,?)",
+        ("Bad Place", None, None, "failed"),
+    )
+    c.commit()
+    g = Geocoder(c, user_agent="freemap-test", min_interval_seconds=0.0)
+    monkeypatch.setattr(
+        g, "_live_geocode", lambda loc: (_ for _ in ()).throw(AssertionError("no live"))
+    )
+    assert g.geocode("Bad Place") is None
+
+
+def test_geocoder_live_miss_caches_failure(monkeypatch):
+    c = _conn()
+    g = Geocoder(c, user_agent="freemap-test", min_interval_seconds=0.0)
+    monkeypatch.setattr(g, "_live_geocode", lambda loc: None)
+    assert g.geocode("Ghost Town") is None
+    row = c.execute(
+        "SELECT status FROM geocode_cache WHERE raw_location=?", ("Ghost Town",)
+    ).fetchone()
+    assert row["status"] == "failed"
+
+
+def test_geocoder_respects_max_live_calls_cap(monkeypatch):
+    c = _conn()
+    g = Geocoder(c, user_agent="freemap-test", min_interval_seconds=0.0, max_live_calls=1)
+    monkeypatch.setattr(g, "_live_geocode", lambda loc: (3.0, 4.0))
+    assert g.geocode("LocA") == (3.0, 4.0)   # 1st live call allowed
+    assert g.geocode("LocB") is None         # cap reached -> no live call, None
