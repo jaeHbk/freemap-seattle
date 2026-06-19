@@ -43,3 +43,34 @@ def test_deals_active_in_bbox_excludes_expired_and_out_of_bbox(client):
     # id=1 present (collapsed primary), id=7 collapsed into it
     assert 1 in ids
     assert 7 not in ids
+
+
+def test_deals_include_stale_returns_stale_rows(client):
+    # Without include_stale, id=3 (stale) is absent.
+    base = client.get(f"/api/deals?bbox={BBOX}")
+    assert 3 not in {d["id"] for d in base.json()}
+    # With include_stale=true, id=3 appears and is marked stale.
+    resp = client.get(f"/api/deals?bbox={BBOX}&include_stale=true")
+    assert resp.status_code == 200
+    by_id = {d["id"]: d for d in resp.json()}
+    assert 3 in by_id
+    assert by_id[3]["status"] == "stale"
+    # Expired (id=4) is STILL excluded even with include_stale.
+    assert 4 not in by_id
+
+
+def test_deals_dedup_collapse_exposes_alt_urls(client):
+    resp = client.get(f"/api/deals?bbox={BBOX}")
+    by_id = {d["id"]: d for d in resp.json()}
+    assert 1 in by_id
+    assert 7 not in by_id  # collapsed into id=1
+    assert "https://example.com/s7" in by_id[1]["alt_urls"]
+
+
+def test_deals_type_filter(client):
+    # placement=physical + no bbox so we see all non-expired, non-stale physical deals.
+    resp = client.get("/api/deals?type=bogo&placement=physical")
+    assert resp.status_code == 200
+    deals = resp.json()
+    assert {d["id"] for d in deals} == {2}  # only the bogo deal (id=2, in or out of bbox irrelevant w/o bbox)
+    assert all(d["deal_type"] == "bogo" for d in deals)
