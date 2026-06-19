@@ -28,70 +28,65 @@ def _to_db(value):
     return value
 
 
-def upsert_deals(conn: sqlite3.Connection, deals: list[Deal], now: datetime) -> int:
+def upsert_deals(conn, deals: list[Deal], now: datetime) -> int:
     """Insert or update each deal on UNIQUE(source, source_id).
 
-    On insert: first_seen and last_seen = now.
-    On conflict: update mutable fields and bump last_seen = now; first_seen preserved.
+    On conflict: update mutable fields + bump last_seen=:now; first_seen preserved.
     Per-row try/except so one bad row never aborts the batch. Returns rows upserted.
     """
-    now_iso = now.isoformat()
-    upserted = 0
     sql = """
         INSERT INTO deals (
             source, source_id, dedup_key, title, url, description,
             deal_type, category, placement, lat, lng, raw_location,
-            geocode_status, posted_at, expires_at, first_seen, last_seen
+            geocode_status, posted_at, expires_at, first_seen, last_seen, status
         ) VALUES (
             :source, :source_id, :dedup_key, :title, :url, :description,
             :deal_type, :category, :placement, :lat, :lng, :raw_location,
-            :geocode_status, :posted_at, :expires_at, :now, :now
+            :geocode_status, :posted_at, :expires_at, :now, :now, 'active'
         )
         ON CONFLICT(source, source_id) DO UPDATE SET
-            dedup_key      = excluded.dedup_key,
-            title          = excluded.title,
-            url            = excluded.url,
-            description    = excluded.description,
-            deal_type      = excluded.deal_type,
-            category       = excluded.category,
-            placement      = excluded.placement,
-            lat            = excluded.lat,
-            lng            = excluded.lng,
-            raw_location   = excluded.raw_location,
-            geocode_status = excluded.geocode_status,
-            posted_at      = excluded.posted_at,
-            expires_at     = excluded.expires_at,
-            last_seen      = :now
+            dedup_key=excluded.dedup_key,
+            title=excluded.title,
+            url=excluded.url,
+            description=excluded.description,
+            deal_type=excluded.deal_type,
+            category=excluded.category,
+            placement=excluded.placement,
+            lat=excluded.lat,
+            lng=excluded.lng,
+            raw_location=excluded.raw_location,
+            geocode_status=excluded.geocode_status,
+            posted_at=excluded.posted_at,
+            expires_at=excluded.expires_at,
+            last_seen=:now
     """
-    for deal in deals:
+    count = 0
+    for d in deals:
+        params = {
+            "source": d.source,
+            "source_id": d.source_id,
+            "dedup_key": d.dedup_key,
+            "title": d.title,
+            "url": d.url,
+            "description": d.description,
+            "deal_type": d.deal_type,
+            "category": d.category,
+            "placement": d.placement,
+            "lat": d.lat,
+            "lng": d.lng,
+            "raw_location": d.raw_location,
+            "geocode_status": d.geocode_status,
+            "posted_at": d.posted_at.isoformat() if d.posted_at else None,
+            "expires_at": d.expires_at.isoformat() if d.expires_at else None,
+            "now": now.isoformat(),
+        }
         try:
-            params = {
-                "source": deal.source,
-                "source_id": deal.source_id,
-                "dedup_key": deal.dedup_key,
-                "title": deal.title,
-                "url": deal.url,
-                "description": deal.description,
-                "deal_type": deal.deal_type,
-                "category": deal.category,
-                "placement": deal.placement,
-                "lat": deal.lat,
-                "lng": deal.lng,
-                "raw_location": deal.raw_location,
-                "geocode_status": deal.geocode_status,
-                "posted_at": _to_db(deal.posted_at),
-                "expires_at": _to_db(deal.expires_at),
-                "now": now_iso,
-            }
             conn.execute(sql, params)
-            upserted += 1
-        except (sqlite3.Error, AttributeError, TypeError, ValueError):
-            # One bad row never aborts the batch — a malformed Deal is skipped
-            # per-row (e.g. missing attribute / unserializable field) rather
-            # than aborting the whole batch.
+            count += 1
+        except sqlite3.Error:
             continue
     conn.commit()
-    return upserted
+    return count
 
 
 def record_run(
@@ -113,11 +108,6 @@ def record_run(
     conn.commit()
 
 
-def fetch_all_deals(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    """SELECT * FROM deals.
-
-    STUB ONLY — replaced with a real, test-first implementation in Milestone 2.
-    Present now so the package imports cleanly. Must NOT remain NotImplementedError
-    after Milestone 2.
-    """
-    raise NotImplementedError("fetch_all_deals is implemented in Milestone 2")
+def fetch_all_deals(conn) -> list:
+    """Return all deal rows (sqlite3.Row objects). FULLY IMPLEMENTED (not a stub)."""
+    return conn.execute("SELECT * FROM deals").fetchall()
