@@ -1,7 +1,5 @@
 import inspect
 
-import pytest
-
 from scrapers import pipeline
 
 
@@ -22,8 +20,3 @@ def test_compute_status_signature_is_canonical():
     assert list(sig.parameters) == [
         "expires_at", "last_seen", "now", "stale_after_hours"
     ]
-
-
-def test_run_pipeline_is_stub_until_milestone_2():
-    with pytest.raises(NotImplementedError):
-        pipeline.run_pipeline([], geocoder=None, conn=None, now=None)

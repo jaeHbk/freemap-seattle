@@ -1,8 +1,6 @@
 import sqlite3
 from datetime import datetime
 
-import pytest
-
 from scrapers.contract import Deal
 from scrapers import db
 
@@ -79,8 +77,3 @@ def test_record_run_writes_one_row(conn):
     assert row["source"] == "reddit"
     assert row["deals_found"] == 3
     assert row["errors"] is None
-
-
-def test_fetch_all_deals_is_stub_until_milestone_2(conn):
-    with pytest.raises(NotImplementedError):
-        db.fetch_all_deals(conn)
