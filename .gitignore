@@ -1,7 +1,12 @@
-db/*.db
-db/*.db-*
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
 .venv/
 venv/
-.env
+*.egg-info/
+# SQLite database is generated; schema.sql is committed instead
+db/deals.db
+db/deals.db-journal
+db/deals.db-wal
+db/deals.db-shm
+.DS_Store
