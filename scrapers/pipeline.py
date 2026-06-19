@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from scrapers.contract import RawDeal, Deal
 
@@ -108,14 +108,17 @@ def dedup(deals: list[Deal]) -> list[Deal]:
 
 
 def compute_status(expires_at, last_seen, now, stale_after_hours: int) -> str:
-    """Pure function -> "expired" | "stale" | "active".
+    """Pure freshness function.
 
-    expired if expires_at and expires_at < now;
-    stale if (now - last_seen) > stale_after_hours hours; else active.
-
-    STUB — implemented test-first in Milestone 2.
+    "expired" if expires_at is set and in the past;
+    else "stale" if (now - last_seen) > stale_after_hours hours;
+    else "active".
     """
-    raise NotImplementedError("compute_status is implemented in Milestone 2")
+    if expires_at is not None and expires_at < now:
+        return "expired"
+    if last_seen is not None and (now - last_seen) > timedelta(hours=stale_after_hours):
+        return "stale"
+    return "active"
 
 
 def run_pipeline(raws: list[RawDeal], geocoder, conn, now) -> int:
