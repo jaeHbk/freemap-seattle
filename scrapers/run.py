@@ -6,12 +6,14 @@ the others; every source's outcome is recorded in scrape_runs.
 """
 from __future__ import annotations
 
+import argparse
 from collections.abc import Callable
 from datetime import datetime
 
-from scrapers.config import Config
+from scrapers.config import Config, load_config
 from scrapers.contract import RawDeal
-from scrapers.db import record_run
+from scrapers.db import connect, init_db, record_run
+from scrapers.geocode import Geocoder
 from scrapers.pipeline import run_pipeline
 from scrapers.sources import reddit, chains, slickdeals, local
 
@@ -73,3 +75,57 @@ def run_all(
                 "errors": str(e),
             }
     return summary
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="scrapers.run",
+        description="FreeMap scrape entrypoint: run all enabled sources through the pipeline into SQLite.",
+    )
+    parser.add_argument(
+        "--db",
+        default=None,
+        help="Path to the SQLite DB (overrides config.db_path).",
+    )
+    parser.add_argument(
+        "--config",
+        default="config.toml",
+        help="Path to config.toml (default: config.toml).",
+    )
+    args = parser.parse_args(argv)
+
+    config = load_config(args.config)
+    db_path = args.db if args.db is not None else config.db_path
+
+    conn = connect(db_path)
+    init_db(conn)
+
+    geocoder = Geocoder(
+        conn,
+        user_agent=config.user_agent,
+        min_interval_seconds=config.geocoder_min_interval_seconds,
+        max_live_calls=config.geocoder_max_live_calls,
+    )
+
+    now = datetime.now()
+    summary = run_all(config, conn, geocoder, now)
+
+    print(f"FreeMap scrape — metro={config.metro} db={db_path} at {now.isoformat()}")
+    any_success = False
+    for name, result in summary.items():
+        deals_found = result["deals_found"]
+        upserted = result["upserted"]
+        errors = result["errors"]
+        if errors is None:
+            any_success = True
+            flag = " [0 FOUND]" if deals_found == 0 else ""
+            print(f"  {name}: found={deals_found} upserted={upserted} ok{flag}")
+        else:
+            print(f"  {name}: found={deals_found} upserted={upserted} ERROR: {errors}")
+
+    conn.close()
+    return 0 if any_success else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
