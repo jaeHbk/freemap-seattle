@@ -64,29 +64,31 @@ def upsert_deals(conn: sqlite3.Connection, deals: list[Deal], now: datetime) -> 
             last_seen      = :now
     """
     for deal in deals:
-        params = {
-            "source": deal.source,
-            "source_id": deal.source_id,
-            "dedup_key": deal.dedup_key,
-            "title": deal.title,
-            "url": deal.url,
-            "description": deal.description,
-            "deal_type": deal.deal_type,
-            "category": deal.category,
-            "placement": deal.placement,
-            "lat": deal.lat,
-            "lng": deal.lng,
-            "raw_location": deal.raw_location,
-            "geocode_status": deal.geocode_status,
-            "posted_at": _to_db(deal.posted_at),
-            "expires_at": _to_db(deal.expires_at),
-            "now": now_iso,
-        }
         try:
+            params = {
+                "source": deal.source,
+                "source_id": deal.source_id,
+                "dedup_key": deal.dedup_key,
+                "title": deal.title,
+                "url": deal.url,
+                "description": deal.description,
+                "deal_type": deal.deal_type,
+                "category": deal.category,
+                "placement": deal.placement,
+                "lat": deal.lat,
+                "lng": deal.lng,
+                "raw_location": deal.raw_location,
+                "geocode_status": deal.geocode_status,
+                "posted_at": _to_db(deal.posted_at),
+                "expires_at": _to_db(deal.expires_at),
+                "now": now_iso,
+            }
             conn.execute(sql, params)
             upserted += 1
-        except sqlite3.Error:
-            # One bad row never aborts the batch.
+        except (sqlite3.Error, AttributeError, TypeError, ValueError):
+            # One bad row never aborts the batch — a malformed Deal is skipped
+            # per-row (e.g. missing attribute / unserializable field) rather
+            # than aborting the whole batch.
             continue
     conn.commit()
     return upserted
