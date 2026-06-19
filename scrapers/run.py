@@ -13,13 +13,13 @@ from scrapers.config import Config
 from scrapers.contract import RawDeal
 from scrapers.db import record_run
 from scrapers.pipeline import run_pipeline
-from scrapers.sources import reddit
+from scrapers.sources import reddit, chains
 
 # Module-level registry: source name -> fetch callable.
 # Milestone 3 wires only reddit; Milestone 5 adds chains/slickdeals/local;
 # Milestone 6 adds the main() CLI entrypoint (which imports connect/init_db/
 # load_config/Geocoder). Keep this registry the single source of truth.
-SOURCES: dict[str, Callable[..., list[RawDeal]]] = {"reddit": reddit.fetch}
+SOURCES: dict[str, Callable[..., list[RawDeal]]] = {"reddit": reddit.fetch, "chains": chains.fetch}
 
 
 def run_all(
