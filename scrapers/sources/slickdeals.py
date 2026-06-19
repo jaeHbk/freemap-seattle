@@ -34,6 +34,13 @@ def fetch(config: Config) -> list[RawDeal]:
                 location_el = art.select_one(".deal-location")
 
                 title = title_el.get_text(strip=True) if title_el else ""
+                # Skip malformed deals missing a stable id or title. Two id-less
+                # deals would both get source_id "" and collide on the
+                # UNIQUE(source, source_id) upsert, silently overwriting each
+                # other. Mirror reddit's guard: a bad deal yields zero rows.
+                if not deal_id or not title:
+                    continue
+
                 description = summary_el.get_text(strip=True) if summary_el else None
                 deal_url = (url_el.get("href") if url_el else None) or url
                 raw_location = (

@@ -49,6 +49,14 @@ def fetch(config: Config) -> list[RawDeal]:
                 expires_el = offer.select_one(".offer-expires")
 
                 title = title_el.get_text(strip=True) if title_el else ""
+                # Skip malformed offers missing a stable id or title. An empty
+                # offer_id would make every branch source_id "::<branch>", so two
+                # id-less offers from the same source would collide on the
+                # UNIQUE(source, source_id) upsert and silently overwrite each
+                # other. Mirror reddit's guard: a bad offer yields zero deals.
+                if not offer_id or not title:
+                    continue
+
                 description = desc_el.get_text(strip=True) if desc_el else None
                 offer_url = (link_el.get("href") if link_el else None) or url
                 expires_at = _parse_expires(expires_el)

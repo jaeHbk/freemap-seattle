@@ -50,6 +50,13 @@ def fetch(config: Config) -> list[RawDeal]:
             for item in root.iter("item"):
                 guid = _text(item, "guid") or ""
                 title = _text(item, "title") or ""
+                # Skip malformed items missing a stable guid or title. Two
+                # guid-less items would both get source_id "" and collide on the
+                # UNIQUE(source, source_id) upsert, silently overwriting each
+                # other. Mirror reddit's guard: a bad item yields zero rows.
+                if not guid or not title:
+                    continue
+
                 description = _text(item, "description")
                 link = _text(item, "link") or url
                 raw_location = _text(item, "location")
