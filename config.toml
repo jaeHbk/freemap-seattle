@@ -12,8 +12,8 @@ min_interval_seconds = 1.0
 max_live_calls = 200
 
 [sources.reddit]
-subreddits = ["Seattle", "SeattleWA"]
-listing_urls = ["https://www.reddit.com/r/Seattle/search.json?q=free&restrict_sr=1"]
+subreddits = ["Seattle"]
+listing_urls = ["https://www.reddit.com/r/Seattle/.json"]
 
 [sources.chains]
 offers_urls = ["https://example-chain.com/offers"]
