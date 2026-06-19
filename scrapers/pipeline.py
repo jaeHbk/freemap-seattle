@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime
 
 from scrapers.contract import RawDeal, Deal
@@ -93,12 +94,17 @@ def geocode_deal(deal: Deal, geocoder) -> Deal:
 
 
 def dedup(deals: list[Deal]) -> list[Deal]:
-    """Set .dedup_key on each (normalized hash of merchant/title + location +
-    deal_type); does NOT remove rows (API collapses on read).
+    """Set .dedup_key on each deal (normalized hash of title+location+deal_type).
 
-    STUB — implemented test-first in Milestone 2.
+    Does NOT remove rows; the API collapses dedup_key groups on read.
     """
-    raise NotImplementedError("dedup is implemented in Milestone 2")
+    def _norm(s: str | None) -> str:
+        return " ".join(s.split()).lower() if s else ""
+
+    for deal in deals:
+        basis = "|".join((_norm(deal.title), _norm(deal.raw_location), deal.deal_type))
+        deal.dedup_key = hashlib.sha256(basis.encode("utf-8")).hexdigest()
+    return deals
 
 
 def compute_status(expires_at, last_seen, now, stale_after_hours: int) -> str:
