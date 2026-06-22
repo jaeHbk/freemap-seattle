@@ -10,3 +10,9 @@ db/deals.db-journal
 db/deals.db-wal
 db/deals.db-shm
 .DS_Store
+
+# launchd scrape logs
+logs/
+
+# MeshClaw run artifact (runtime, not source)
+TASK_PROGRESS.md
