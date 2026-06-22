@@ -18,7 +18,7 @@ def _config() -> Config:
         geocoder_min_interval_seconds=1.0,
         geocoder_max_live_calls=200,
         sources_enabled=["slickdeals"],
-        sources={"slickdeals": {"listing_urls": ["https://slickdeals.example/deals/free"]}},
+        sources={"slickdeals": {"listing_urls": ["https://www.dealnews.com/"]}},
     )
 
 
@@ -31,7 +31,7 @@ class _FakeResponse:
         pass
 
 
-def test_slickdeals_fetch_parses_list(monkeypatch):
+def test_slickdeals_fetch_parses_dealnews_offers(monkeypatch):
     html = FIXTURE.read_text(encoding="utf-8")
     captured = {}
 
@@ -43,29 +43,47 @@ def test_slickdeals_fetch_parses_list(monkeypatch):
 
     deals = slickdeals.fetch(_config())
 
-    assert len(deals) == 3
+    # Only the two OFFER cards with a stable id survive: the ARTICLE card and the
+    # id-less OFFER are both dropped.
+    assert len(deals) == 2
     assert all(isinstance(d, RawDeal) for d in deals)
     assert all(d.source == "slickdeals" for d in deals)
     assert captured["headers"]["User-Agent"] == "FreeMapSeattle/1.0 (test)"
 
     by_id = {d.source_id: d for d in deals}
-    assert set(by_id) == {"sd-100001", "sd-100002", "sd-100003"}
+    assert set(by_id) == {"21846479", "21846466"}
 
-    # Two online-only deals -> raw_location None
-    assert by_id["sd-100001"].raw_location is None
-    assert by_id["sd-100002"].raw_location is None
-    assert by_id["sd-100001"].url == "https://slickdeals.example/f/100001-free-audiobook"
+    # Title is decoded from the data-share-*-url `t=` param (URL-encoded),
+    # including punctuation (comma, ampersand).
+    assert by_id["21846479"].title == "Amazon Early Prime Day Deals"
+    assert by_id["21846466"].title == "Ray-Ban, Oakley, & more at Woot"
 
-    # One physical deal carries the store address
-    assert by_id["sd-100003"].raw_location == "1518 6th Ave, Seattle, WA 98101"
-    assert by_id["sd-100003"].title == "Free Coffee at Downtown Seattle Store"
+    # data-offer-url is already absolute — used verbatim as the deal URL.
+    assert (
+        by_id["21846479"].url
+        == "https://www.dealnews.com/Amazon-Early-Prime-Day-Deals/21846479.html"
+    )
+
+    # DealNews offers carry no location element -> online deals (list view).
+    assert all(d.raw_location is None for d in deals)
+
+
+def test_slickdeals_fetch_ignores_non_offer_content(monkeypatch):
+    """A content card whose data-content-type is not OFFER (e.g. ARTICLE) is not
+    a deal and must not be emitted."""
+    html = FIXTURE.read_text(encoding="utf-8")
+    monkeypatch.setattr(httpx, "get", lambda url, **k: _FakeResponse(html))
+
+    deals = slickdeals.fetch(_config())
+
+    assert "99990000" not in {d.source_id for d in deals}  # the ARTICLE card
 
 
 def _config_two_urls() -> Config:
     cfg = _config()
     cfg.sources["slickdeals"]["listing_urls"] = [
-        "https://slickdeals.example/bad",
-        "https://slickdeals.example/deals/free",
+        "https://www.dealnews.com/bad",
+        "https://www.dealnews.com/",
     ]
     return cfg
 
@@ -83,37 +101,43 @@ def test_slickdeals_fetch_skips_failing_url(monkeypatch):
 
     deals = slickdeals.fetch(_config_two_urls())
 
-    assert len(deals) == 3
-    assert {d.source_id for d in deals} == {"sd-100001", "sd-100002", "sd-100003"}
+    assert {d.source_id for d in deals} == {"21846479", "21846466"}
 
 
-def test_slickdeals_fetch_skips_idless_deal(monkeypatch):
-    """Articles with no data-deal-id (or no title) are skipped — never emitted
-    with an empty source_id, where two would collide on the unique upsert key."""
+def test_slickdeals_fetch_skips_idless_offer(monkeypatch):
+    """OFFER cards with no data-content-id (or no decodable title) are skipped —
+    never emitted with an empty source_id, where two would collide on the
+    UNIQUE(source, source_id) upsert key."""
     html = """
-    <div class="deal-list">
-      <article class="deal" data-deal-id="sd-1">
-        <h2 class="deal-title">Real Deal</h2>
-        <a class="deal-url" href="https://slickdeals.example/f/1">x</a>
-      </article>
-      <article class="deal">
-        <h2 class="deal-title">First No-ID</h2>
-        <a class="deal-url" href="https://slickdeals.example/f/n1">x</a>
-      </article>
-      <article class="deal">
-        <h2 class="deal-title">Second No-ID</h2>
-        <a class="deal-url" href="https://slickdeals.example/f/n2">x</a>
-      </article>
-      <article class="deal" data-deal-id="sd-no-title"></article>
-    </div>
+    <section>
+      <div class="content-card">
+        <button data-content-id="ok-1" data-content-type="OFFER"
+                data-offer-url="https://www.dealnews.com/ok-1.html"
+                data-share-twitter-url="https://www.dealnews.com/lw/share.html?s=twitter&amp;t=Real%20Deal"></button>
+      </div>
+      <div class="content-card">
+        <button data-content-type="OFFER"
+                data-offer-url="https://www.dealnews.com/n1.html"
+                data-share-twitter-url="https://www.dealnews.com/lw/share.html?s=twitter&amp;t=First%20No%20ID"></button>
+      </div>
+      <div class="content-card">
+        <button data-content-type="OFFER"
+                data-offer-url="https://www.dealnews.com/n2.html"
+                data-share-twitter-url="https://www.dealnews.com/lw/share.html?s=twitter&amp;t=Second%20No%20ID"></button>
+      </div>
+      <div class="content-card">
+        <button data-content-id="no-title" data-content-type="OFFER"
+                data-offer-url="https://www.dealnews.com/nt.html"></button>
+      </div>
+    </section>
     """
 
     monkeypatch.setattr(httpx, "get", lambda url, **k: _FakeResponse(html))
 
     deals = slickdeals.fetch(_config())
 
-    # Only the valid deal survives; both id-less deals and the title-less deal
+    # Only the valid offer survives; both id-less offers and the title-less offer
     # are dropped (otherwise the two id-less ones collide to a single row).
     assert len(deals) == 1
-    assert deals[0].source_id == "sd-1"
+    assert deals[0].source_id == "ok-1"
     assert all(d.source_id and d.title for d in deals)

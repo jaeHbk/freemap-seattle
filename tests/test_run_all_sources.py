@@ -110,11 +110,13 @@ def test_run_all_one_source_throws_others_still_upsert(monkeypatch):
     assert summary["chains"]["errors"] is None
     assert summary["chains"]["upserted"] == 6
     assert summary["slickdeals"]["errors"] is None
-    assert summary["slickdeals"]["upserted"] == 3
+    # DealNews fixture has 2 valid OFFER cards (an ARTICLE card and an id-less
+    # OFFER are correctly skipped).
+    assert summary["slickdeals"]["upserted"] == 2
     assert summary["local"]["errors"] is None
     assert summary["local"]["upserted"] == 2
 
-    # DB holds exactly the survivors' rows: 6 + 3 + 2 = 11, none from reddit.
+    # DB holds exactly the survivors' rows: 6 + 2 + 2 = 10, none from reddit.
     rows = fetch_all_deals(conn)
-    assert len(rows) == 11
+    assert len(rows) == 10
     assert all(r["source"] != "reddit" for r in rows)

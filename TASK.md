@@ -6,10 +6,13 @@ green, then on cron every 6–12h via `meshclaw run TASK.md`.
 
 ## What to do
 
-1. **Run the scrape** from the repo root:
+1. **Run the scrape** from the repo root, using the project virtualenv
+   interpreter (the scraper deps — httpx, beautifulsoup4 — live in `.venv/`,
+   not in system python):
 
    ```bash
-   python -m scrapers.run
+   cd /Users/jaehunb/projects/freemap
+   ./.venv/bin/python -m scrapers.run
    ```
 
    This loads `config.toml`, opens (and initializes if needed) the DB at
@@ -27,7 +30,8 @@ After the command exits, confirm `scrape_runs` recorded this run — one row per
 enabled source, newest first:
 
 ```bash
-python -c "import sqlite3, tomllib; \
+cd /Users/jaehunb/projects/freemap
+./.venv/bin/python -c "import sqlite3, tomllib; \
 cfg = tomllib.load(open('config.toml','rb')); \
 db = cfg['meta']['db_path']; \
 c = sqlite3.connect(db); c.row_factory = sqlite3.Row; \
@@ -54,7 +58,8 @@ Report the per-source summary from the run:
 ## Exit policy
 
 - Exit **non-zero only on total failure** — i.e. when every source errored
-  (`python -m scrapers.run` already returns `1` in that case; propagate it).
+  (`./.venv/bin/python -m scrapers.run` already returns `1` in that case;
+  propagate it).
 - A run where some sources found 0 or errored but at least one succeeded is a
   **success with flags** — report the flags, exit `0`.
 
@@ -68,6 +73,24 @@ Report the per-source summary from the run:
   free because locations repeat.
 - **One bad source never aborts the run** — failures are recorded to
   `scrape_runs`, not raised.
+- **Wired-source status (as of this version) — TWO live sources:**
+  - `slickdeals` → **live** (DealNews, https://www.dealnews.com/) — ~50 online
+    deals/run. The real working source.
+  - `local` → **live** (My Ballard RSS, https://www.myballard.com/feed/) — ~30
+    online deals/run. The feed has no `<location>`, so these are list-view
+    deals, not geocoded map pins.
+  - `reddit` → **known-blocked, EXPECTED 0-found**: `https://www.reddit.com/r/Seattle/.json`
+    returns HTTP 403 to a non-browser User-Agent (Reddit requires a browser UA
+    or OAuth). The scraper catches it and reports 0 found — do NOT treat
+    reddit's 0/error flag as a regression. Re-enabling needs a browser-like UA
+    or Reddit's OAuth API (deferred; OAuth would add a secret).
+  - `chains` → **intentionally synthetic, EXPECTED 0-found**: `offers_urls`
+    points at a `.example` placeholder that fails DNS and is skipped. Expected
+    every run; not a regression until a real chain offers source is wired.
+  - **Net:** a healthy run reports `slickdeals` and `local` with deals, and
+    `reddit` + `chains` flagged at 0-found. That is the current SUCCESS state.
+    Investigate only if `slickdeals` or `local` drops to 0 (changed markup /
+    moved feed) or if every source errors (total failure → exit 1).
 - **Known tuning note:** the reddit source currently fetches the plain subreddit
   hot feed (no server-side `q=free` filter), so a live run pulls all hot posts
   and relies on the pipeline's classifier to sort deal types. This is fine for

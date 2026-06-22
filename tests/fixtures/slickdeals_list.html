@@ -1,24 +1,70 @@
-<!DOCTYPE html>
-<html lang="en">
-<head><title>Slickdeals — Free & BOGO</title></head>
-<body>
-  <div class="deal-list">
-    <article class="deal" data-deal-id="sd-100001">
-      <h2 class="deal-title">Free Audiobook Download (New Members)</h2>
-      <p class="deal-summary">Get one free audiobook when you sign up. Online only.</p>
-      <a class="deal-url" href="https://slickdeals.example/f/100001-free-audiobook">See deal</a>
-    </article>
-    <article class="deal" data-deal-id="sd-100002">
-      <h2 class="deal-title">Buy One Get One Free eBook</h2>
-      <p class="deal-summary">BOGO on select eBooks this weekend. Online only.</p>
-      <a class="deal-url" href="https://slickdeals.example/f/100002-bogo-ebook">See deal</a>
-    </article>
-    <article class="deal" data-deal-id="sd-100003">
-      <h2 class="deal-title">Free Coffee at Downtown Seattle Store</h2>
-      <p class="deal-summary">Free 12oz coffee, in store only.</p>
-      <a class="deal-url" href="https://slickdeals.example/f/100003-free-coffee">See deal</a>
-      <span class="deal-location">1518 6th Ave, Seattle, WA 98101</span>
-    </article>
-  </div>
-</body>
+<!doctype html>
+<!--
+  Recorded shape of the DealNews front page (https://www.dealnews.com/), trimmed
+  to the parts slickdeals.py parses. The real page carries the stable id, offer
+  URL, and title on a <button> action-menu element (NOT on the .content-card
+  wrapper, and NOT as visible text): data-content-id, data-content-type="OFFER",
+  data-offer-url (absolute), and the human title URL-encoded in the
+  data-share-*-url attributes as the `t=` query param. The scraper decodes the
+  title from a data-share-*-url `t=` parameter. All DealNews offers are online
+  (no location element), so they surface as online deals in the list view.
+-->
+<html>
+  <head><title>DealNews</title></head>
+  <body>
+    <main>
+      <section class="content-section-list">
+
+        <!-- A normal online offer -->
+        <div class="content-card card content-card-initial">
+          <div class="content-media"><img src="/img/a.jpg" alt=""></div>
+          <div class="content-section">
+            <button
+              class="btn-stand-alone action-menu bottom-sheet-opener"
+              data-content-id="21846479"
+              data-content-type="OFFER"
+              data-offer-url="https://www.dealnews.com/Amazon-Early-Prime-Day-Deals/21846479.html"
+              data-share-twitter-url="https://www.dealnews.com/lw/share.html?s=twitter&amp;t=Amazon%20Early%20Prime%20Day%20Deals&amp;u=https%3A%2F%2Fwww.dealnews.com%2F21846479"
+              data-share-email-url="https://www.dealnews.com/email.html?21846479">Share</button>
+          </div>
+        </div>
+
+        <!-- Another online offer; title has encoded punctuation (comma, ampersand) -->
+        <div class="content-card card content-card-initial">
+          <div class="content-section">
+            <button
+              class="btn-stand-alone action-menu"
+              data-content-id="21846466"
+              data-content-type="OFFER"
+              data-offer-url="https://www.dealnews.com/Ray-Ban-Oakley-more-at-Woot/21846466.html"
+              data-share-twitter-url="https://www.dealnews.com/lw/share.html?s=twitter&amp;t=Ray-Ban%2C%20Oakley%2C%20%26%20more%20at%20Woot&amp;u=https%3A%2F%2Fwww.dealnews.com%2F21846466">Share</button>
+          </div>
+        </div>
+
+        <!-- A non-OFFER content card (e.g. an article/guide) — must be ignored -->
+        <div class="content-card card content-card-initial">
+          <div class="content-section">
+            <button
+              class="btn-stand-alone action-menu"
+              data-content-id="99990000"
+              data-content-type="ARTICLE"
+              data-offer-url=""
+              data-share-twitter-url="https://www.dealnews.com/lw/share.html?s=twitter&amp;t=How%20to%20Shop%20Prime%20Day">Share</button>
+          </div>
+        </div>
+
+        <!-- An OFFER with a missing id — must be skipped (would collide on upsert) -->
+        <div class="content-card card content-card-initial">
+          <div class="content-section">
+            <button
+              class="btn-stand-alone action-menu"
+              data-content-type="OFFER"
+              data-offer-url="https://www.dealnews.com/no-id/0.html"
+              data-share-twitter-url="https://www.dealnews.com/lw/share.html?s=twitter&amp;t=Mystery%20Deal%20No%20ID">Share</button>
+          </div>
+        </div>
+
+      </section>
+    </main>
+  </body>
 </html>

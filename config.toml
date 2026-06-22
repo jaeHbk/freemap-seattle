@@ -15,6 +15,12 @@ max_live_calls = 200
 subreddits = ["Seattle"]
 listing_urls = ["https://www.reddit.com/r/Seattle/.json"]
 
+# chains: kept SYNTHETIC for now. No real, Seattle-covering chain "offers" page
+# was found that (a) renders offers in server-side HTML, (b) permits scraping in
+# robots.txt, and (c) fits the parser's per-branch fan-out model. The .example
+# host fails DNS and is skipped per-URL (no rows, no crash). Wire a real
+# offers_url here only after updating chains.py selectors + synthesizing a stable
+# offer id (see docs).
 [sources.chains]
 offers_urls = ["https://seattlebeans.example/offers"]
 
@@ -23,8 +29,13 @@ offers_urls = ["https://seattlebeans.example/offers"]
 "Ballard" = "5402 22nd Ave NW, Seattle, WA 98107"
 "Fremont" = "3501 Fremont Ave N, Seattle, WA 98103"
 
+# slickdeals: wired to DealNews (server-rendered offer cards; robots.txt allows
+# all but /dead-end/ with Crawl-delay: 2). Offers are online -> list view.
 [sources.slickdeals]
-listing_urls = ["https://slickdeals.example/deals/free"]
+listing_urls = ["https://www.dealnews.com/"]
 
+# local: wired to the My Ballard neighborhood blog RSS feed (plain RSS 2.0).
+# Items have no <location>, so they surface as online deals in the list view,
+# not geocoded map pins.
 [sources.local]
-feed_urls = ["https://localdeals.example/seattle/feed.xml"]
+feed_urls = ["https://www.myballard.com/feed/"]
