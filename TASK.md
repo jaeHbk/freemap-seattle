@@ -91,9 +91,10 @@ Report the per-source summary from the run:
     `reddit` + `chains` flagged at 0-found. That is the current SUCCESS state.
     Investigate only if `slickdeals` or `local` drops to 0 (changed markup /
     moved feed) or if every source errors (total failure → exit 1).
-- **Known tuning note:** the reddit source currently fetches the plain subreddit
-  hot feed (no server-side `q=free` filter), so a live run pulls all hot posts
-  and relies on the pipeline's classifier to sort deal types. This is fine for
-  v1; a server-side `q=free&restrict_sr=1` query or a keyword pre-filter would
-  tighten precision later.
+- **Reddit precision:** the reddit source fetches the plain subreddit hot feed
+  (no server-side `q=free` filter), then applies a client-side deal-signal
+  pre-filter (`_DEAL_SIGNALS` in `sources/reddit.py`) so only free/BOGO posts
+  reach the classifier. A server-side `q=free&restrict_sr=1` query could tighten
+  this further but adds no value while the pre-filter mirrors the classifier's
+  own vocabulary.
 - Do not point this at the web layer; the scraper and API share only the DB.

@@ -82,7 +82,7 @@ interface, configured under `[sources.*]` in `config.toml`. Current status:
 |---|---|---|
 | `slickdeals` | DealNews front page | **live** — server-rendered offer cards |
 | `local` | My Ballard RSS feed | **live** — online deals (feed has no location) |
-| `reddit` | `r/Seattle` JSON | blocked — Reddit returns 403 to a non-browser UA; needs a browser UA or OAuth |
+| `reddit` | `r/Seattle` JSON | **live** — sends a browser UA to clear Reddit's 403; deal-signal pre-filter trims hot-feed noise (a live IP may still be rate-limited) |
 | `chains` | — | synthetic placeholder; no scrapeable Seattle-wide chain offers page found |
 
 Blocked/placeholder sources scrape 0 deals and are recorded as such — expected, not
