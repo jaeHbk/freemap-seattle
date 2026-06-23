@@ -96,8 +96,8 @@ listing_urls = ["https://test.local/reddit"]
 [sources.chains]
 offers_urls = ["https://test.local/chains"]
 
-[sources.chains.branches]
-"Capitol Hill" = "Capitol Hill, Seattle"
+[sources.chains.venues]
+"Half Shell" = "2020 Western Ave, Seattle, WA 98121"
 
 [sources.slickdeals]
 listing_urls = ["https://test.local/slickdeals"]
@@ -124,9 +124,9 @@ def test_full_offline_run_populates_db_and_scrape_runs(tmp_path, monkeypatch):
             self._fake = FakeGeocoder(
                 {
                     "Capitol Hill": (47.6253, -122.3222),
-                    "Capitol Hill, Seattle": (47.6253, -122.3222),
                     "Downtown Seattle": (47.6062, -122.3321),
                     "Ballard": (47.6685, -122.3838),
+                    "2020 Western Ave, Seattle, WA 98121": (47.6109, -122.3430),
                 }
             )
 

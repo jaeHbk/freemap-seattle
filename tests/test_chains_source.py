@@ -8,6 +8,16 @@ from scrapers.sources import chains
 
 FIXTURE = Path(__file__).parent / "fixtures" / "chains_offers.html"
 
+# The five venue addresses the live config seeds; the fixture mirrors the real
+# tomdouglas.com/happy-hour/ markup (one off-site "Visit" link per venue block).
+VENUES = {
+    "Half Shell": "2020 Western Ave, Seattle, WA 98121",
+    "Palace Kitchen": "2030 5th Ave, Seattle, WA 98121",
+    "Neb": "316 Virginia St, Seattle, WA 98121",
+    "Serious Pie Downtown": "2001 4th Ave, Seattle, WA 98121",
+    "Serious Pie Totem Lake": "12540 120th Ave NE #122, Kirkland, WA 98034",
+}
+
 
 def _config() -> Config:
     return Config(
@@ -20,12 +30,8 @@ def _config() -> Config:
         sources_enabled=["chains"],
         sources={
             "chains": {
-                "offers_urls": ["https://seattlebeans.example/offers"],
-                "branches": {
-                    "Capitol Hill": "1429 12th Ave, Seattle, WA 98122",
-                    "Ballard": "5402 22nd Ave NW, Seattle, WA 98107",
-                    "Fremont": "3501 Fremont Ave N, Seattle, WA 98103",
-                },
+                "offers_urls": ["https://www.tomdouglas.com/happy-hour/"],
+                "venues": dict(VENUES),
             }
         },
     )
@@ -40,7 +46,7 @@ class _FakeResponse:
         pass
 
 
-def test_chains_fetch_expands_offers_to_branches(monkeypatch):
+def test_chains_fetch_parses_happy_hour_venues(monkeypatch):
     html = FIXTURE.read_text(encoding="utf-8")
     captured = {}
 
@@ -53,39 +59,61 @@ def test_chains_fetch_expands_offers_to_branches(monkeypatch):
 
     deals = chains.fetch(_config())
 
-    # 2 offers x 3 branches = 6 RawDeals
-    assert len(deals) == 6
+    # 5 venue blocks -> 5 RawDeals. The intro "See All" + footer "Our Restaurants"
+    # buttons (relative hrefs) and the name-less block are all skipped.
+    assert len(deals) == 5
     assert all(isinstance(d, RawDeal) for d in deals)
     assert all(d.source == "chains" for d in deals)
 
     # User-Agent from config was sent
     assert captured["headers"]["User-Agent"] == "FreeMapSeattle/1.0 (test)"
 
-    # Every branch address shows up as raw_location
-    locations = {d.raw_location for d in deals}
-    assert locations == {
-        "1429 12th Ave, Seattle, WA 98122",
-        "5402 22nd Ave NW, Seattle, WA 98107",
-        "3501 Fremont Ave N, Seattle, WA 98103",
+    # Every deal is physical: raw_location comes from the configured venue map.
+    by_title = {d.title: d for d in deals}
+    assert set(by_title) == {
+        "Half Shell Happy Hour",
+        "Palace Kitchen Happy Hour",
+        "Neb Happy Hour",
+        "Serious Pie Downtown Happy Hour",
+        "Serious Pie Totem Lake Happy Hour",
     }
+    assert all(d.raw_location for d in deals)
+    assert by_title["Half Shell Happy Hour"].raw_location == VENUES["Half Shell"]
 
-    # source_id is unique per (offer, branch) so upsert never collapses two branches
+    # The off-site Visit URL is the deal url AND the stable source_id.
+    half = by_title["Half Shell Happy Hour"]
+    assert half.url == "https://www.halfshellseattle.com/menus/#happy-hour/"
+    assert half.source_id == half.url
+    assert half.description and "oyster" in half.description.lower()
+
+    # source_id is unique per venue so the upsert never collapses two venues —
+    # including the two Serious Pie locations that share one host.
     ids = [d.source_id for d in deals]
     assert len(ids) == len(set(ids))
 
-    # The BOGO offer's branch deals carry its title/url/expiry
-    bogo = [d for d in deals if d.title == "Buy One Get One Free Latte"]
-    assert len(bogo) == 3
-    assert bogo[0].url == "https://seattlebeans.example/offers/bogo-latte-2026"
-    assert bogo[0].expires_at is not None
-    assert bogo[0].expires_at.year == 2026 and bogo[0].expires_at.month == 6
+
+def test_chains_fetch_falls_back_to_named_location(monkeypatch):
+    """A venue not present in the config `venues` map still surfaces as physical,
+    with a "<venue>, Seattle, WA" raw_location the geocoder can resolve by name."""
+    html = FIXTURE.read_text(encoding="utf-8")
+    monkeypatch.setattr(httpx, "get", lambda url, **k: _FakeResponse(html))
+
+    cfg = _config()
+    # Drop one venue from the address map; it should fall back, not disappear.
+    del cfg.sources["chains"]["venues"]["Neb"]
+
+    deals = chains.fetch(cfg)
+
+    assert len(deals) == 5
+    neb = next(d for d in deals if d.title == "Neb Happy Hour")
+    assert neb.raw_location == "Neb, Seattle, WA"
 
 
 def _config_two_urls() -> Config:
     cfg = _config()
     cfg.sources["chains"]["offers_urls"] = [
-        "https://seattlebeans.example/bad",
-        "https://seattlebeans.example/offers",
+        "https://www.tomdouglas.com/bad",
+        "https://www.tomdouglas.com/happy-hour/",
     ]
     return cfg
 
@@ -103,34 +131,64 @@ def test_chains_fetch_skips_failing_url(monkeypatch):
 
     deals = chains.fetch(_config_two_urls())
 
-    # The good URL's 2 offers x 3 branches still come through.
-    assert len(deals) == 6
+    # The good URL's 5 venues still come through.
+    assert len(deals) == 5
     assert all(d.source == "chains" for d in deals)
 
 
-def test_chains_fetch_skips_idless_offer(monkeypatch):
-    """An offer with no data-offer-id (or no title) is skipped, not emitted with
-    a "::<branch>" source_id that would collide across malformed offers."""
+def test_chains_fetch_skips_relative_and_nameless_blocks(monkeypatch):
+    """Buttons with a relative href (intro/footer nav) and an external Visit link
+    with no <h2> venue name are both dropped — never emitted as bogus deals."""
     html = """
-    <ul class="offers">
-      <li class="offer" data-offer-id="real-1">
-        <h3 class="offer-title">Real Offer</h3>
-        <a class="offer-link" href="https://seattlebeans.example/o/real-1">x</a>
-      </li>
-      <li class="offer">
-        <h3 class="offer-title">No Id Offer</h3>
-        <a class="offer-link" href="https://seattlebeans.example/o/noid">x</a>
-      </li>
-      <li class="offer" data-offer-id="no-title-1"></li>
-    </ul>
+    <main>
+      <section><div>
+        <h2>Pick your Vibe</h2>
+        <p>Intro blurb.</p>
+        <a href="/our-restaurants/" class="btn btn-brand">See All</a>
+      </div></section>
+      <section><div>
+        <h2>Real Venue</h2>
+        <p>A real happy hour.</p>
+        <a href="https://www.realvenue.example/menus/#hh" class="btn btn-brand">Visit</a>
+      </div></section>
+      <section><div>
+        <p>No heading here.</p>
+        <a href="https://www.noname.example/menus/#hh" class="btn btn-brand">Visit</a>
+      </div></section>
+      <section><div>
+        <a href="/contact/" class="btn btn-brand">Footer</a>
+      </div></section>
+    </main>
     """
 
     monkeypatch.setattr(httpx, "get", lambda url, **k: _FakeResponse(html))
 
     deals = chains.fetch(_config())
 
-    # Only the one valid offer expands across 3 branches; the id-less and the
-    # title-less offers are dropped entirely.
-    assert len(deals) == 3
-    assert all(d.source_id.startswith("real-1::") for d in deals)
+    # Only the one real venue with both an external Visit link and an <h2> survives.
+    assert len(deals) == 1
+    assert deals[0].title == "Real Venue Happy Hour"
+    assert deals[0].source_id == "https://www.realvenue.example/menus/#hh"
     assert all(d.source_id and d.title for d in deals)
+
+
+def test_chains_fetch_dedups_repeated_venue_button(monkeypatch):
+    """Two 'Visit' buttons pointing at the same venue URL collapse to one deal,
+    so they never collide on the UNIQUE(source, source_id) upsert."""
+    html = """
+    <main>
+      <section><div>
+        <h2>Twice Linked</h2>
+        <p>Happy hour with a duplicated CTA.</p>
+        <a href="https://www.twice.example/menus/#hh" class="btn btn-brand">Visit</a>
+        <a href="https://www.twice.example/menus/#hh" class="btn btn-brand">Visit</a>
+      </div></section>
+    </main>
+    """
+
+    monkeypatch.setattr(httpx, "get", lambda url, **k: _FakeResponse(html))
+
+    deals = chains.fetch(_config())
+
+    assert len(deals) == 1
+    assert deals[0].source_id == "https://www.twice.example/menus/#hh"

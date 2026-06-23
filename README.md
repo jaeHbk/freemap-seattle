@@ -82,10 +82,10 @@ interface, configured under `[sources.*]` in `config.toml`. Current status:
 |---|---|---|
 | `slickdeals` | DealNews front page | **live** — server-rendered offer cards |
 | `local` | My Ballard RSS feed | **live** — online deals (feed has no location) |
+| `chains` | Tom Douglas happy hours | **live** — one physical deal per named Seattle venue → geocoded map pins |
 | `reddit` | `r/Seattle` JSON | **live** — sends a browser UA to clear Reddit's 403; deal-signal pre-filter trims hot-feed noise (a live IP may still be rate-limited) |
-| `chains` | — | synthetic placeholder; no scrapeable Seattle-wide chain offers page found |
 
-Blocked/placeholder sources scrape 0 deals and are recorded as such — expected, not
+Empty sources scrape 0 deals and are recorded as such — expected, not
 a failure. Adding a real source is a new `sources/<name>.py` plus a `[sources.<name>]`
 config block; the pipeline, API, and frontend need no changes.
 

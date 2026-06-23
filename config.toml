@@ -15,19 +15,21 @@ max_live_calls = 200
 subreddits = ["Seattle"]
 listing_urls = ["https://www.reddit.com/r/Seattle/.json"]
 
-# chains: kept SYNTHETIC for now. No real, Seattle-covering chain "offers" page
-# was found that (a) renders offers in server-side HTML, (b) permits scraping in
-# robots.txt, and (c) fits the parser's per-branch fan-out model. The .example
-# host fails DNS and is skipped per-URL (no rows, no crash). Wire a real
-# offers_url here only after updating chains.py selectors + synthesizing a stable
-# offer id (see docs).
+# chains: wired to Tom Douglas Restaurants' happy-hours page — a server-rendered
+# (BentoBox) page whose robots.txt allows it and which needs no secrets. Each
+# happy hour is at a named physical Seattle venue, so these surface as geocoded
+# map pins (unlike the online-only slickdeals/local sources). The parser anchors
+# on each venue's off-site "Visit" link; `venues` seeds precise addresses for the
+# geocoder (a missing venue falls back to "<name>, Seattle, WA").
 [sources.chains]
-offers_urls = ["https://seattlebeans.example/offers"]
+offers_urls = ["https://www.tomdouglas.com/happy-hour/"]
 
-[sources.chains.branches]
-"Capitol Hill" = "1429 12th Ave, Seattle, WA 98122"
-"Ballard" = "5402 22nd Ave NW, Seattle, WA 98107"
-"Fremont" = "3501 Fremont Ave N, Seattle, WA 98103"
+[sources.chains.venues]
+"Half Shell" = "2020 Western Ave, Seattle, WA 98121"
+"Palace Kitchen" = "2030 5th Ave, Seattle, WA 98121"
+"Neb" = "316 Virginia St, Seattle, WA 98121"
+"Serious Pie Downtown" = "2001 4th Ave, Seattle, WA 98121"
+"Serious Pie Totem Lake" = "12540 120th Ave NE #122, Kirkland, WA 98034"
 
 # slickdeals: wired to DealNews (server-rendered offer cards; robots.txt allows
 # all but /dead-end/ with Crawl-delay: 2). Offers are online -> list view.

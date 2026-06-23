@@ -73,24 +73,28 @@ Report the per-source summary from the run:
   free because locations repeat.
 - **One bad source never aborts the run** — failures are recorded to
   `scrape_runs`, not raised.
-- **Wired-source status (as of this version) — TWO live sources:**
+- **Wired-source status (as of this version) — FOUR live sources:**
   - `slickdeals` → **live** (DealNews, https://www.dealnews.com/) — ~50 online
     deals/run. The real working source.
   - `local` → **live** (My Ballard RSS, https://www.myballard.com/feed/) — ~30
     online deals/run. The feed has no `<location>`, so these are list-view
     deals, not geocoded map pins.
-  - `reddit` → **known-blocked, EXPECTED 0-found**: `https://www.reddit.com/r/Seattle/.json`
-    returns HTTP 403 to a non-browser User-Agent (Reddit requires a browser UA
-    or OAuth). The scraper catches it and reports 0 found — do NOT treat
-    reddit's 0/error flag as a regression. Re-enabling needs a browser-like UA
-    or Reddit's OAuth API (deferred; OAuth would add a secret).
-  - `chains` → **intentionally synthetic, EXPECTED 0-found**: `offers_urls`
-    points at a `.example` placeholder that fails DNS and is skipped. Expected
-    every run; not a regression until a real chain offers source is wired.
-  - **Net:** a healthy run reports `slickdeals` and `local` with deals, and
-    `reddit` + `chains` flagged at 0-found. That is the current SUCCESS state.
-    Investigate only if `slickdeals` or `local` drops to 0 (changed markup /
-    moved feed) or if every source errors (total failure → exit 1).
+  - `chains` → **live** (Tom Douglas Restaurants happy hours,
+    https://www.tomdouglas.com/happy-hour/) — ~5 physical deals/run, one per
+    named Seattle venue (Half Shell, Palace Kitchen, Neb, Serious Pie, ...).
+    Each carries a `raw_location`, so these are the geocoded **map pins**
+    slickdeals/local don't provide. Server-rendered (BentoBox), robots-allowed,
+    no secrets. The parser anchors on each venue's off-site "Visit" link; if the
+    page markup changes, `chains` drops to 0-found (a visible flag, not a crash).
+  - `reddit` → **live** (`https://www.reddit.com/r/Seattle/.json`) — sends a
+    browser User-Agent to clear Reddit's 403, then applies a client-side
+    deal-signal pre-filter so only free/BOGO posts reach the classifier. A live
+    IP may still be rate-limited; the scraper catches that and reports 0 found
+    (skip-and-continue), so a transient 0/error is not a regression.
+  - **Net:** a healthy run reports `slickdeals`, `local`, and `chains` with
+    deals; `reddit` adds deals when not rate-limited. Investigate only if
+    `slickdeals`, `local`, or `chains` drops to 0 (changed markup / moved feed)
+    or if every source errors (total failure → exit 1).
 - **Reddit precision:** the reddit source fetches the plain subreddit hot feed
   (no server-side `q=free` filter), then applies a client-side deal-signal
   pre-filter (`_DEAL_SIGNALS` in `sources/reddit.py`) so only free/BOGO posts
