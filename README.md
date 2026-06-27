@@ -105,6 +105,38 @@ tail -f logs/scrape.out.log                            # watch output
 worth it only if you want a layer that *reacts* to results (alerting, diagnosing a
 broken selector). For a plain scheduled scrape, the LaunchAgent is all you need.
 
+## Hosting the DB (Turso)
+
+Local dev uses the SQLite file `db/deals.db` and needs no setup. For deployment
+(where serverless functions have no persistent disk), the same schema runs on
+**Turso** (libSQL, SQLite-compatible). The driver swap is env-gated: set both
+`TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` and the app uses Turso; leave them
+unset and it falls back to the local file. No code change either way.
+
+**1. Provision (one time, by a human with the Turso CLI):**
+
+```bash
+turso db create freemap                 # create the database
+turso db show freemap --url             # -> TURSO_DATABASE_URL (libsql://...)
+turso db tokens create freemap          # -> TURSO_AUTH_TOKEN (secret)
+```
+
+**2. Set the env vars.** Copy `.env.example` to `.env.local` (gitignored) and
+fill in the two values for local runs against Turso. In CI / Vercel, set the
+**same two names** as secrets — `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (GitHub
+Actions secrets for the scrape job; the Vercel dashboard for the read API). Never
+commit a token; `.env.example` holds placeholders only.
+
+**3. Apply the schema** (idempotent — re-runnable):
+
+```bash
+./.venv/bin/python -m scripts.migrate_turso
+```
+
+This runs `db/schema.sql` (the committed source of truth) against the Turso DB.
+It refuses to run unless both env vars are present. After it succeeds, point the
+scraper and API at Turso by exporting the same vars before running them.
+
 ## Repoint to a different metro
 
 The metro is config, not code. In `config.toml` set `[meta].metro`, update the

@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS deals (
 
 CREATE INDEX IF NOT EXISTS idx_deals_dedup_key ON deals(dedup_key);
 
+-- Spatial path: the map query filters lat/lng to a bbox (fetch_deals_in_bbox).
+CREATE INDEX IF NOT EXISTS idx_deals_lat_lng ON deals(lat, lng);
+
 CREATE TABLE IF NOT EXISTS geocode_cache (
     raw_location    TEXT PRIMARY KEY,
     lat             REAL,
