@@ -2,12 +2,19 @@
 metro = "seattle"
 db_path = "db/deals.db"
 user_agent = "FreeMapSeattle/1.0 (contact: freemap@example.com)"
-sources_enabled = ["reddit", "chains", "slickdeals", "local"]
+# reddit (403) and chains (synthetic .example host) are KNOWN-DEAD and dropped from
+# the enabled set — they only ever recorded 0 rows. places_brand is the source that
+# fills the MAP with geocoded pins; slickdeals/local stay online-only (list view).
+sources_enabled = ["places_brand", "slickdeals", "local"]
 
 [freshness]
 stale_after_hours = 24
 
 [geocoder]
+# provider: "census" (keyless US Census geocoder, the default — works unattended)
+#         | "google" (uses GOOGLE_MAPS_API_KEY env) | "nominatim" (OSM; public
+#           endpoint now 403s server traffic, kept for local/dev only).
+provider = "census"
 min_interval_seconds = 1.0
 max_live_calls = 200
 
@@ -39,3 +46,48 @@ listing_urls = ["https://www.dealnews.com/"]
 # not geocoded map pins.
 [sources.local]
 feed_urls = ["https://www.myballard.com/feed/"]
+
+# places_brand: the source that FILLS THE MAP. Each brand's free/BOGO offer fans
+# out to one physical deal per Seattle storefront, geocoded to a pin.
+#   provider="config" (default, KEYLESS): storefronts are the curated `locations`
+#     below — provable today with the Nominatim geocoder, no API key.
+#   provider="google": omit `locations`; storefronts are discovered via the Google
+#     Places API (needs GOOGLE_MAPS_API_KEY) and the offer fans out across all of
+#     them. Switch by setting provider="google" here and [geocoder].provider="google".
+# Offer text is what classify() reads — keep the free/BOGO + food/retail keywords.
+[sources.places_brand]
+provider = "config"
+metro_query = "Seattle, WA"
+
+[[sources.places_brand.brands]]
+id = "starbucks-bogo"
+name = "Starbucks"
+offer = "Buy one handcrafted drink, get one free (BOGO), 12-6pm"
+url = "https://www.starbucks.com/rewards"
+locations = [
+  "102 Pike St, Seattle, WA 98101",
+  "1912 Pike Pl, Seattle, WA 98101",
+  "400 Occidental Ave S, Seattle, WA 98104",
+  "505 5th Ave S, Seattle, WA 98104",
+]
+
+[[sources.places_brand.brands]]
+id = "chipotle-freeguac"
+name = "Chipotle"
+offer = "Free guacamole with any entree purchase"
+url = "https://www.chipotle.com/"
+locations = [
+  "1501 Pike Pl, Seattle, WA 98101",
+  "1318 Madison St, Seattle, WA 98104",
+  "4229 University Way NE, Seattle, WA 98105",
+]
+
+[[sources.places_brand.brands]]
+id = "moes-bogo-burrito"
+name = "MOD Pizza"
+offer = "Buy one pizza get one free for rewards members (BOGO)"
+url = "https://modpizza.com/"
+locations = [
+  "510 Westlake Ave N, Seattle, WA 98109",
+  "2640 NE University Village St, Seattle, WA 98105",
+]

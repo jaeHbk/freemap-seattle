@@ -91,7 +91,14 @@ def geocode_deal(deal: Deal, geocoder) -> Deal:
     Online / already-resolved deals pass through unchanged.
     """
     if deal.placement == "physical" and deal.geocode_status == "pending":
-        result = geocoder.geocode(deal.raw_location) if deal.raw_location else None
+        try:
+            result = geocoder.geocode(deal.raw_location) if deal.raw_location else None
+        except Exception:
+            # A geocoder error (e.g. provider 403/timeout) must DEMOTE the deal to
+            # failed-geocode (it still surfaces in the list view), never let the
+            # exception escape — run_pipeline's per-row except would otherwise drop
+            # the whole deal silently. Demote, don't disappear.
+            result = None
         if result is not None:
             deal.lat, deal.lng = result
             deal.geocode_status = "ok"

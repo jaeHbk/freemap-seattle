@@ -48,6 +48,19 @@ def test_geocode_deal_failed_keeps_deal_nulls_status_failed():
     assert out.geocode_status == "failed"
 
 
+def test_geocode_deal_demotes_on_geocoder_exception():
+    """A geocoder that RAISES (e.g. provider 403/timeout) must demote the deal to
+    failed-geocode, not let the exception escape — otherwise run_pipeline's per-row
+    except drops the whole deal silently. Demote, don't disappear."""
+    class _BoomGeocoder:
+        def geocode(self, raw_location):
+            raise RuntimeError("provider 403")
+
+    out = geocode_deal(_deal("physical", "pending", "102 Pike St, Seattle"), _BoomGeocoder())
+    assert out.lat is None and out.lng is None
+    assert out.geocode_status == "failed"
+
+
 def test_geocode_deal_skips_online():
     g = FakeGeocoder({"X": (1.0, 2.0)})
     out = geocode_deal(_deal("online", "n/a", None), g)

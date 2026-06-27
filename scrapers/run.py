@@ -14,9 +14,9 @@ from datetime import datetime
 from scrapers.config import Config, load_config
 from scrapers.contract import RawDeal
 from scrapers.db import connect, init_db, record_run
-from scrapers.geocode import Geocoder
+from scrapers.geocoders import make_geocoder
 from scrapers.pipeline import run_pipeline
-from scrapers.sources import reddit, chains, slickdeals, local
+from scrapers.sources import reddit, chains, slickdeals, local, places_brand
 
 # Module-level registry: source name -> fetch callable.
 # Milestone 3 wires only reddit; Milestone 5 adds chains/slickdeals/local;
@@ -27,6 +27,7 @@ SOURCES: dict[str, Callable[..., list[RawDeal]]] = {
     "chains": chains.fetch,
     "slickdeals": slickdeals.fetch,
     "local": local.fetch,
+    "places_brand": places_brand.fetch,
 }
 
 
@@ -107,12 +108,9 @@ def main(argv=None) -> int:
     init_db(conn)
 
     try:
-        geocoder = Geocoder(
-            conn,
-            user_agent=config.user_agent,
-            min_interval_seconds=config.geocoder_min_interval_seconds,
-            max_live_calls=config.geocoder_max_live_calls,
-        )
+        # Geocoder provider is config-driven (keyless Nominatim by default; "google"
+        # uses GOOGLE_MAPS_API_KEY when set, else degrades to Nominatim).
+        geocoder = make_geocoder(config.geocoder_provider, conn, config)
 
         now = datetime.now()
         summary = run_all(config, conn, geocoder, now)

@@ -11,8 +11,15 @@ db/deals.db-wal
 db/deals.db-shm
 .DS_Store
 
+# Local secrets (Turso URL/token, API keys); .env.example holds placeholders only
+.env.local
+.env
+
 # launchd scrape logs
 logs/
 
 # MeshClaw run artifact (runtime, not source)
 TASK_PROGRESS.md
+
+# Phase-1 DB backup (local only)
+db/deals.db.pre-phase1.bak

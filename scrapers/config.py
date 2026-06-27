@@ -16,6 +16,8 @@ class Config:
     geocoder_max_live_calls: int                # 200
     sources_enabled: list[str]                  # ["reddit", "chains", "slickdeals", "local"]
     sources: dict = field(default_factory=dict) # per-source settings
+    # Defaulted so existing Config(...) call sites (tests) need no change.
+    geocoder_provider: str = "census"            # "census" (keyless default) | "google" (GOOGLE_MAPS_API_KEY) | "nominatim"
 
 
 def load_config(path: str = "config.toml") -> Config:
@@ -38,6 +40,7 @@ def load_config(path: str = "config.toml") -> Config:
         db_path=meta.get("db_path", "db/deals.db"),
         stale_after_hours=freshness.get("stale_after_hours", 24),
         user_agent=meta.get("user_agent", DEFAULT_USER_AGENT),
+        geocoder_provider=geocoder.get("provider", "census"),
         geocoder_min_interval_seconds=geocoder.get("min_interval_seconds", 1.0),
         geocoder_max_live_calls=geocoder.get("max_live_calls", 200),
         sources_enabled=meta.get(
