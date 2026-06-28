@@ -93,7 +93,8 @@ config block; the pipeline, API, and frontend need no changes.
 
 The scrape is a deterministic command, so it's driven by a plain OS scheduler. On
 macOS, a `launchd` LaunchAgent (`com.freemap.scrape`) runs it every 12 hours and
-logs to `logs/`:
+logs to `logs/`. (In production this is replaced by the GitHub Actions cron — see
+**Deploy & operate** above for migration and teardown.)
 
 ```bash
 launchctl print gui/$(id -u)/com.freemap.scrape        # status + last exit code
@@ -136,6 +137,28 @@ commit a token; `.env.example` holds placeholders only.
 This runs `db/schema.sql` (the committed source of truth) against the Turso DB.
 It refuses to run unless both env vars are present. After it succeeds, point the
 scraper and API at Turso by exporting the same vars before running them.
+
+## Deploy & operate
+
+In production the three layers share **Turso** instead of the local SQLite file:
+**GitHub Actions** scrapes into Turso on a 12h cron, and **Vercel** hosts the
+Next.js app (`web-next/`) whose route handlers read Turso at request time. The
+GitHub Actions cron replaces the local `launchd` job below.
+
+```
+GitHub Actions (cron 12h) --writes--> Turso <--reads-- Vercel (web-next)
+```
+
+Secrets — `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, optional `GOOGLE_MAPS_API_KEY`
+— live in GitHub Actions secrets and the Vercel dashboard, referenced by name only;
+`.env.example` holds empty placeholders. After each scrape, `python -m scrapers.health`
+compares `scrape_runs` against the `config.toml [health]` baseline and fails the
+workflow **only** when an *expected* source (`places_brand`, `slickdeals`, `local`)
+errors or returns 0 — the known-dead `reddit`/`chains` never alert.
+
+The full step-by-step runbook (Turso provisioning, seeding, Vercel project setup,
+GitHub Actions secrets, reading health, and **tearing down the old launchd job**) is
+in **[`docs/DEPLOY.md`](docs/DEPLOY.md)**. See `.env.example` for every env var.
 
 ## Repoint to a different metro
 

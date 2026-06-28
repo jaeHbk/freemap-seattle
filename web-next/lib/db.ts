@@ -1,16 +1,29 @@
 import { createClient, type Client, type Row } from "@libsql/client";
 
-// Live path: Turso via env. Local verification: the real sqlite file (265 rows,
-// 8 geocoded pins). NEVER hardcode a token — authToken comes from env only.
+// Live path: Turso via env. Local dev: the repo's sqlite file. NEVER hardcode a
+// token — authToken comes from env only.
 // ponytail: one shared client; route handlers are short-lived, libSQL pools internally.
 let _client: Client | null = null;
 
+// Local-dev fallback DB, relative to web-next/ (../db/deals.db at repo root). NOT
+// an absolute home-dir path — that leaks into the deployed artifact and is wrong
+// on Vercel's Linux runtime anyway.
+const LOCAL_DB_URL = "file:../db/deals.db";
+
 export function getClient(): Client {
   if (_client) return _client;
+  const url = process.env.TURSO_DATABASE_URL;
+  // In production (Vercel) the Turso URL is REQUIRED. Without this guard a missing
+  // or typo'd env var silently falls back to a nonexistent local file and surfaces
+  // as an opaque request-time 500; fail fast with a clear message instead.
+  if (!url && (process.env.VERCEL || process.env.NODE_ENV === "production")) {
+    throw new Error(
+      "TURSO_DATABASE_URL is not set. Set it (and TURSO_AUTH_TOKEN) in the Vercel " +
+        "project env — see docs/DEPLOY.md.",
+    );
+  }
   _client = createClient({
-    url:
-      process.env.TURSO_DATABASE_URL ??
-      "file:/Users/jaehunb/projects/freemap/db/deals.db",
+    url: url ?? LOCAL_DB_URL,
     authToken: process.env.TURSO_AUTH_TOKEN,
   });
   return _client;

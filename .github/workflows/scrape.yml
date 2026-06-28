@@ -1,0 +1,56 @@
+name: scrape
+
+# Scheduled cloud scrape that replaces the machine-local launchd job.
+# Writes to Turso (scrapers/db.py connect() auto-detects TURSO_* env), then
+# runs the source-health check. No persistent disk needed — all writes go to Turso.
+on:
+  schedule:
+    # Every 12h (00:00 and 12:00 UTC). cron is UTC; GH Actions cron can be
+    # delayed under load — fine for a 12h scrape.
+    - cron: "0 */12 * * *"
+  workflow_dispatch: {}
+
+# Least privilege: this job only reads the repo and talks to Turso over HTTP.
+# It never pushes commits or touches the GH API.
+permissions:
+  contents: read
+
+# Never let two scrapes overlap (a manual dispatch on top of a cron run, or a
+# slow run still going when the next cron fires). Let the in-flight one finish.
+concurrency:
+  group: scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          # 3.14 is GA, but allow a prerelease fallback if a runner lacks the
+          # GA build so the job never hard-fails on interpreter availability.
+          allow-prereleases: true
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Scrape into Turso
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: python -m scrapers.run
+
+      - name: Source health check
+        # continue-on-error left at its default (false): a sick expected-healthy
+        # source must fail the job. health.py never alerts on the known-dead
+        # sources (reddit, chains).
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: python -m scrapers.health

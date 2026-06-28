@@ -10,6 +10,15 @@ sources_enabled = ["places_brand", "slickdeals", "local"]
 [freshness]
 stale_after_hours = 24
 
+# Source-health baseline for `python -m scrapers.health` (run post-scrape in CI).
+# `expected` sources MUST have a latest scrape_runs row that neither errored nor
+# found 0 deals, or the check exits non-zero. `known_dead` (reddit 403 / chains
+# synthetic host) record 0 forever and are NEVER alerted — keep them here, not in
+# `expected`, so the normal "2 dead" steady state never pages.
+[health]
+expected = ["places_brand", "slickdeals", "local"]
+known_dead = ["reddit", "chains"]
+
 [geocoder]
 # provider: "census" (keyless US Census geocoder, the default — works unattended)
 #         | "google" (uses GOOGLE_MAPS_API_KEY env) | "nominatim" (OSM; public
