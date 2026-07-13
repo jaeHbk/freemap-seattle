@@ -117,23 +117,19 @@ def test_full_offline_run_populates_db_and_scrape_runs(tmp_path, monkeypatch):
     # No live network: every source's httpx.get is served a recorded fixture.
     monkeypatch.setattr(httpx, "get", _fake_httpx_get)
 
-    # No live Nominatim: replace the Geocoder main() constructs with a
-    # FakeGeocoder. Any Seattle-ish raw_location resolves; misses -> None.
-    class _PatchedGeocoder:
-        def __init__(self, *args, **kwargs):
-            self._fake = FakeGeocoder(
-                {
-                    "Capitol Hill": (47.6253, -122.3222),
-                    "Downtown Seattle": (47.6062, -122.3321),
-                    "Ballard": (47.6685, -122.3838),
-                    "2020 Western Ave, Seattle, WA 98121": (47.6109, -122.3430),
-                }
-            )
-
-        def geocode(self, raw_location):
-            return self._fake.geocode(raw_location)
-
-    monkeypatch.setattr(run_module, "Geocoder", _PatchedGeocoder)
+    # No live geocoder: replace the geocoder main() builds with a FakeGeocoder.
+    # main() now picks its geocoder via make_geocoder(provider, conn, config), so
+    # patch that factory to return the fake. Any Seattle-ish raw_location resolves;
+    # misses -> None.
+    fake = FakeGeocoder(
+        {
+            "Capitol Hill": (47.6253, -122.3222),
+            "Downtown Seattle": (47.6062, -122.3321),
+            "Ballard": (47.6685, -122.3838),
+            "2020 Western Ave, Seattle, WA 98121": (47.6109, -122.3430),
+        }
+    )
+    monkeypatch.setattr(run_module, "make_geocoder", lambda *a, **k: fake)
 
     exit_code = run_module.main(["--config", str(config_file), "--db", str(db_file)])
 

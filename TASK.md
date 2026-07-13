@@ -1,7 +1,7 @@
 # TASK: FreeMap scheduled scrape (MeshClaw)
 
 Unattended scrape of all enabled sources into the SQLite DB. No secrets required
-(the geocoder is Nominatim — no API key). Run interactively first to confirm
+(the default geocoder is the US Census service). Run interactively first to confirm
 green, then on cron every 6–12h via `meshclaw run TASK.md`.
 
 ## What to do
@@ -41,7 +41,8 @@ rows = c.execute('SELECT source, deals_found, errors, finished_at FROM scrape_ru
 
 Checklist:
 - [ ] There is one fresh `scrape_runs` row for **each** source listed in
-      `config.sources_enabled` (`reddit`, `chains`, `slickdeals`, `local`).
+      `config.sources_enabled` (`places_brand`, `chains`, `slickdeals`, `local`,
+      `reddit`).
 - [ ] No source is missing a row (a missing row means the orchestration did not
       reach it — investigate `run.py`).
 
@@ -65,15 +66,16 @@ Report the per-source summary from the run:
 
 ## Notes for unattended operation
 
-- **Zero secrets.** Do not set or expect any API keys. The User-Agent for all
-  outbound requests (including Nominatim) comes from `config.toml`
-  (`[meta].user_agent`).
+- **Zero secrets.** The default Census geocoder needs no API key. The User-Agent
+  for outbound requests comes from `config.toml` (`[meta].user_agent`).
 - **Polite + cached.** Geocoding is cache-first and rate-limited
   (`[geocoder].min_interval_seconds`, `max_live_calls`); re-scrapes are nearly
   free because locations repeat.
 - **One bad source never aborts the run** — failures are recorded to
   `scrape_runs`, not raised.
-- **Wired-source status (as of this version) — FOUR live sources:**
+- **Wired-source status (as of this version) — FIVE live sources:**
+  - `places_brand` → **live** — curated free/BOGO offers fan out to physical
+    Seattle storefronts and produce geocoded map pins.
   - `slickdeals` → **live** (DealNews, https://www.dealnews.com/) — ~50 online
     deals/run. The real working source.
   - `local` → **live** (My Ballard RSS, https://www.myballard.com/feed/) — ~30
@@ -91,10 +93,9 @@ Report the per-source summary from the run:
     deal-signal pre-filter so only free/BOGO posts reach the classifier. A live
     IP may still be rate-limited; the scraper catches that and reports 0 found
     (skip-and-continue), so a transient 0/error is not a regression.
-  - **Net:** a healthy run reports `slickdeals`, `local`, and `chains` with
-    deals; `reddit` adds deals when not rate-limited. Investigate only if
-    `slickdeals`, `local`, or `chains` drops to 0 (changed markup / moved feed)
-    or if every source errors (total failure → exit 1).
+  - **Net:** a healthy run reports `places_brand`, `slickdeals`, `local`, and
+    `chains` with deals; `reddit` adds deals when not rate-limited. Investigate
+    if one of the four stable sources drops to 0 or if every source errors.
 - **Reddit precision:** the reddit source fetches the plain subreddit hot feed
   (no server-side `q=free` filter), then applies a client-side deal-signal
   pre-filter (`_DEAL_SIGNALS` in `sources/reddit.py`) so only free/BOGO posts

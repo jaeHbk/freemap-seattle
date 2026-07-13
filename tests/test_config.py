@@ -37,6 +37,21 @@ listing_urls = ["https://www.reddit.com/r/Seattle/search.json"]
     assert cfg.sources["reddit"]["subreddits"] == ["Seattle", "SeattleWA"]
 
 
+def test_geocoder_provider_defaults_to_census_not_nominatim(tmp_path):
+    """A config that omits [geocoder].provider must default to the keyless 'census'
+    geocoder — NOT 'nominatim', whose public endpoint 403s server traffic and would
+    silently demote every physical deal to failed-geocode (the empty-map failure
+    this whole effort exists to fix). load_config's fallback and the Config field
+    default must agree."""
+    p = tmp_path / "config.toml"
+    p.write_text('[meta]\nmetro = "seattle"\n[geocoder]\nmin_interval_seconds = 1.0\n')
+
+    cfg = load_config(str(p))
+    assert cfg.geocoder_provider == "census"
+    # The two defaults must not diverge.
+    assert cfg.geocoder_provider == Config.__dataclass_fields__["geocoder_provider"].default
+
+
 def test_load_config_applies_defaults_when_tables_absent(tmp_path):
     # Only [meta]; freshness/geocoder/sources omitted -> defaults fill in.
     p = tmp_path / "config.toml"
@@ -57,9 +72,13 @@ def test_load_config_applies_defaults_when_tables_absent(tmp_path):
     assert cfg.sources == {}
 
 
-def test_committed_config_toml_loads_and_reddit_reachable():
-    # The real committed config at repo root must load and expose sources["reddit"].
+def test_committed_config_toml_loads_and_sources_reachable():
+    # The real committed config at repo root must load and expose its source blocks.
     cfg = load_config("config.toml")
     assert cfg.metro == "seattle"
-    assert "reddit" in cfg.sources_enabled
-    assert cfg.sources["reddit"]["subreddits"]  # reachable, non-empty
+    # places_brand is the map-filling source and must be enabled; reddit/chains are
+    # known-dead and intentionally dropped from the enabled set (their blocks remain
+    # in the file for reference/reachability).
+    assert "places_brand" in cfg.sources_enabled
+    assert cfg.sources["places_brand"]["brands"]  # reachable, non-empty
+    assert cfg.sources["reddit"]["subreddits"]  # block still reachable as a plain dict

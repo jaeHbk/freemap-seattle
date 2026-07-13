@@ -1,0 +1,23 @@
+{
+  "status": "OK",
+  "results": [
+    {
+      "place_id": "ChIJ-bfVTh8VkFQRDsfQ1pZL2pk",
+      "name": "Chipotle Mexican Grill",
+      "formatted_address": "1501 Pike Pl, Seattle, WA 98101, United States",
+      "geometry": { "location": { "lat": 47.6097, "lng": -122.3422 } }
+    },
+    {
+      "place_id": "ChIJ7Xl2bh4VkFQRpVbX3kqLm4A",
+      "name": "Chipotle Mexican Grill",
+      "formatted_address": "1318 Madison St, Seattle, WA 98104, United States",
+      "geometry": { "location": { "lat": 47.6089, "lng": -122.3265 } }
+    },
+    {
+      "place_id": "ChIJ9aQd2R8VkFQRYt0Lh3pZ5mE",
+      "name": "Chipotle Mexican Grill",
+      "formatted_address": "4229 University Way NE, Seattle, WA 98105, United States",
+      "geometry": { "location": { "lat": 47.6582, "lng": -122.3134 } }
+    }
+  ]
+}

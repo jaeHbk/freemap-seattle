@@ -70,8 +70,8 @@ if all errored.
   → greyed, shown only with `include_stale=true`.
 - **active** — otherwise.
 
-**Geocoding** uses Nominatim (no key), cache-first and rate-limited; re-scrapes are
-nearly free because locations repeat.
+**Geocoding** uses the keyless US Census provider by default, cache-first and
+rate-limited; Google and Nominatim adapters are also available.
 
 ## Sources
 
@@ -80,6 +80,7 @@ interface, configured under `[sources.*]` in `config.toml`. Current status:
 
 | Source | Wired to | Status |
 |---|---|---|
+| `places_brand` | Curated Seattle storefront offers | **live** — one physical deal per storefront → geocoded map pins |
 | `slickdeals` | DealNews front page | **live** — server-rendered offer cards |
 | `local` | My Ballard RSS feed | **live** — online deals (feed has no location) |
 | `chains` | Tom Douglas happy hours | **live** — one physical deal per named Seattle venue → geocoded map pins |
@@ -93,7 +94,8 @@ config block; the pipeline, API, and frontend need no changes.
 
 The scrape is a deterministic command, so it's driven by a plain OS scheduler. On
 macOS, a `launchd` LaunchAgent (`com.freemap.scrape`) runs it every 12 hours and
-logs to `logs/`:
+logs to `logs/`. (In production this is replaced by the GitHub Actions cron — see
+**Deploy & operate** above for migration and teardown.)
 
 ```bash
 launchctl print gui/$(id -u)/com.freemap.scrape        # status + last exit code
@@ -104,6 +106,61 @@ tail -f logs/scrape.out.log                            # watch output
 `TASK.md` is an equivalent spec for an LLM runner (e.g. `meshclaw run TASK.md`) —
 worth it only if you want a layer that *reacts* to results (alerting, diagnosing a
 broken selector). For a plain scheduled scrape, the LaunchAgent is all you need.
+
+## Hosting the DB (Turso)
+
+Local dev uses the SQLite file `db/deals.db` and needs no setup. For deployment
+(where serverless functions have no persistent disk), the same schema runs on
+**Turso** (libSQL, SQLite-compatible). The driver swap is env-gated: set both
+`TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` and the app uses Turso; leave them
+unset and it falls back to the local file. No code change either way.
+
+**1. Provision (one time, by a human with the Turso CLI):**
+
+```bash
+turso db create freemap                 # create the database
+turso db show freemap --url             # -> TURSO_DATABASE_URL (libsql://...)
+turso db tokens create freemap          # -> TURSO_AUTH_TOKEN (secret)
+```
+
+**2. Set the env vars.** Copy `.env.example` to `.env.local` (gitignored) and
+fill in the two values for local runs against Turso. In CI / Vercel, set the
+**same two names** as secrets — `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (GitHub
+Actions secrets for the scrape job; the Vercel dashboard for the read API). Never
+commit a token; `.env.example` holds placeholders only.
+
+**3. Apply the schema** (idempotent — re-runnable):
+
+```bash
+./.venv/bin/python -m scripts.migrate_turso
+```
+
+This runs `db/schema.sql` (the committed source of truth) against the Turso DB.
+It refuses to run unless both env vars are present. After it succeeds, point the
+scraper and API at Turso by exporting the same vars before running them.
+
+## Deploy & operate
+
+In production the three layers share **Turso** instead of the local SQLite file:
+**GitHub Actions** scrapes into Turso on a 12h cron, and **Vercel** hosts the
+Next.js app (`web-next/`) whose route handlers read Turso at request time. The
+GitHub Actions cron replaces the local `launchd` job below.
+
+```
+GitHub Actions (cron 12h) --writes--> Turso <--reads-- Vercel (web-next)
+```
+
+Secrets — `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, optional `GOOGLE_MAPS_API_KEY`
+— live in GitHub Actions secrets and the Vercel dashboard, referenced by name only;
+`.env.example` holds empty placeholders. After each scrape, `python -m scrapers.health`
+compares `scrape_runs` against the `config.toml [health]` baseline and fails the
+workflow **only** when an *expected* source (`places_brand`, `chains`,
+`slickdeals`, `local`) errors or returns 0. Reddit is reported but optional
+because runner IPs can be rate-limited.
+
+The full step-by-step runbook (Turso provisioning, seeding, Vercel project setup,
+GitHub Actions secrets, reading health, and **tearing down the old launchd job**) is
+in **[`docs/DEPLOY.md`](docs/DEPLOY.md)**. See `.env.example` for every env var.
 
 ## Repoint to a different metro
 

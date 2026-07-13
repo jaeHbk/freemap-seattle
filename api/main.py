@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
 from scrapers.config import load_config
-from scrapers.db import connect, fetch_all_deals
+from scrapers.db import connect, fetch_all_deals, fetch_deals_in_bbox
 from scrapers.pipeline import compute_status
 
 app = FastAPI(title="FreeMap Seattle API")
@@ -132,7 +132,13 @@ def list_deals(
     stale_after_hours: int = Depends(get_stale_after_hours),
 ):
     bbox_tuple = _parse_bbox(bbox)
-    rows = fetch_all_deals(conn)
+    # With a bbox, the coordinate filter is pushed into SQL (excludes coordless
+    # deals); without one, serve every deal (incl. coordless list deals). All
+    # other filters — status/type/category/placement/dedup — still run below.
+    if bbox_tuple is not None:
+        rows = fetch_deals_in_bbox(conn, bbox_tuple)
+    else:
+        rows = fetch_all_deals(conn)
     out: list[dict] = []
     for row in rows:
         status = compute_status(
@@ -153,8 +159,8 @@ def list_deals(
             continue
         if placement is not None and deal["placement"] != placement:
             continue
-        if not _in_bbox(deal, bbox_tuple):
-            continue
+        # Coordinate filtering already happened in SQL (fetch_deals_in_bbox) when
+        # a bbox was given; _in_bbox stays the tested contract for that SQL path.
         out.append(deal)
     return _collapse_dedup(out)
 
