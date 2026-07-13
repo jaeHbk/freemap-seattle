@@ -132,7 +132,7 @@ export default function Home() {
 
           {/* Single source-of-truth tablist (one in the a11y tree at every
               viewport) — wraps under the brand on very narrow screens. */}
-          <div className="ml-auto">
+          <div className="md:ml-auto">
             <ViewTabs
               value={view}
               onValueChange={setView}
