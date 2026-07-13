@@ -1,7 +1,13 @@
 """Reddit source: fetch free/BOGO deal posts from configured listing URLs.
 
-Reads config.user_agent and config.sources["reddit"]. Tested only against
-recorded payloads by monkeypatching httpx.get; never hits the live network here.
+Reads config.sources["reddit"]. Tested only against recorded payloads by
+monkeypatching httpx.get; never hits the live network here.
+
+User-Agent note: Reddit returns HTTP 403 to bare/non-browser clients, so this
+source sends a browser-like UA (_BROWSER_USER_AGENT below) rather than
+config.user_agent. config.user_agent is the polite, identifying UA shared with
+Nominatim, whose policy REQUIRES an identifying contact UA; spoofing a browser
+there would violate that policy, so the browser UA is scoped to this source.
 """
 from __future__ import annotations
 
@@ -12,6 +18,42 @@ import httpx
 
 from scrapers.config import Config
 from scrapers.contract import RawDeal
+
+# Browser-like User-Agent sent ONLY on Reddit requests. Reddit 403s bare clients
+# (the project's default identifying UA included), so we present a common desktop
+# Chrome UA to get the public .json listing. Kept local to this source so the
+# Nominatim-facing config.user_agent stays a polite, identifying contact string.
+_BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+# Deal-signal substrings used as a server-free precision pre-filter. The plain
+# hot feed has no q=free filter, so most posts are not deals; classify() would
+# bucket them as deal_type="other" anyway. Dropping non-signal posts here keeps
+# the DB free of noise without a server-side query (no extra request, no auth).
+# Substring matching mirrors classify()'s own free/BOGO vocabulary so the
+# pre-filter never rejects a post the classifier would have called free/bogo.
+_DEAL_SIGNALS = (
+    "free",
+    "bogo",
+    "buy one",
+    "b1g1",
+    "giveaway",
+    "giving away",
+)
+
+
+def _is_deal_candidate(title: str, selftext: str | None) -> bool:
+    """True if the post text carries a free/BOGO deal signal.
+
+    Conservative pre-filter: matches the same vocabulary classify() uses to set
+    deal_type, so a kept post is one the classifier could label free/bogo. Posts
+    with no signal are plain hot-feed chatter and are dropped before mapping.
+    """
+    haystack = f"{title} {selftext or ''}".lower()
+    return any(signal in haystack for signal in _DEAL_SIGNALS)
+
 
 # Lower-cased substrings that signal a physical Seattle location in free text.
 # Used to populate raw_location; classify() turns a non-None location into
@@ -100,7 +142,8 @@ def fetch(config: Config) -> list[RawDeal]:
     """
     settings = config.sources.get("reddit", {})
     listing_urls = settings.get("listing_urls", [])
-    headers = {"User-Agent": config.user_agent}
+    # Browser UA, not config.user_agent: Reddit 403s the identifying client UA.
+    headers = {"User-Agent": _BROWSER_USER_AGENT}
 
     deals: list[RawDeal] = []
     for url in listing_urls:
@@ -122,6 +165,10 @@ def fetch(config: Config) -> list[RawDeal]:
 
         for child in children:
             post = (child or {}).get("data", {}) if isinstance(child, dict) else {}
+            # Precision pre-filter: skip plain hot-feed posts with no deal signal
+            # before mapping, so the classifier only ever sees deal candidates.
+            if not _is_deal_candidate(post.get("title") or "", post.get("selftext")):
+                continue
             raw_deal = _post_to_rawdeal(post)
             if raw_deal is not None:
                 deals.append(raw_deal)

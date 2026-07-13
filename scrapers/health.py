@@ -2,9 +2,8 @@
 
 Reads the LATEST scrape_runs row per source and decides PASS/FAIL against the
 [health] baseline in config.toml: an EXPECTED source must have a latest run that
-neither errored nor found 0 deals. KNOWN-DEAD sources (reddit, chains — 403 /
-synthetic host, 0 forever) are never alerted: the normal "2 of N dead" steady
-state must not page.
+neither errored nor found 0 deals. OPTIONAL sources are reported but never
+alerted; Reddit is optional because a live runner IP can still be rate-limited.
 
 Run as `python -m scrapers.health` (exit 0 = healthy, 1 = an expected source is
 unhealthy or missing). The decision core, evaluate_health(), is pure so it's
@@ -26,25 +25,26 @@ from scrapers.pipeline import _as_naive_utc
 
 # Plan baseline (config.toml [health]). Used only if the [health] table is
 # absent from the config file, so an old config still checks the right sources.
-_DEFAULT_EXPECTED = ["places_brand", "slickdeals", "local"]
-_DEFAULT_KNOWN_DEAD = ["reddit", "chains"]
+_DEFAULT_EXPECTED = ["places_brand", "chains", "slickdeals", "local"]
+_DEFAULT_OPTIONAL = ["reddit"]
 
 
 def load_health_baseline(config_path: str) -> tuple[list[str], list[str]]:
-    """Read the [health] table from config.toml -> (expected, known_dead).
+    """Read the [health] table from config.toml -> (expected, optional).
 
     Parsed here (not via scrapers.config.Config) so the health lane owns its own
-    config surface; falls back to the plan defaults if the table is missing.
+    config surface. `known_dead` remains a backwards-compatible alias for old
+    config files.
     """
     try:
         with open(config_path, "rb") as f:
             health = tomllib.load(f).get("health", {})
     except (FileNotFoundError, OSError):
         health = {}
-    return (
-        health.get("expected", _DEFAULT_EXPECTED),
-        health.get("known_dead", _DEFAULT_KNOWN_DEAD),
-    )
+    optional = health.get("optional")
+    if optional is None:
+        optional = health.get("known_dead", _DEFAULT_OPTIONAL)
+    return health.get("expected", _DEFAULT_EXPECTED), optional
 
 
 def _is_stale(finished_at, now: datetime | None, max_age_hours: float | None) -> bool:
@@ -65,16 +65,16 @@ def _is_stale(finished_at, now: datetime | None, max_age_hours: float | None) ->
 def evaluate_health(
     latest_by_source: dict[str, dict],
     expected: list[str],
-    known_dead: list[str],
+    optional: list[str],
     now: datetime | None = None,
     max_age_hours: float | None = None,
 ) -> dict:
     """Decide health from the latest run per source. PURE — no DB, no I/O.
 
     latest_by_source: {source: {"deals_found": int, "errors": str | None,
-      "finished_at": str | None}}. (known_dead entries are ignored either way.)
+      "finished_at": str | None}}. (optional entries are ignored either way.)
     expected: sources that MUST be healthy.
-    known_dead: sources that are allowed to be dead and never alert.
+    optional: sources that are reported but never alert.
     now + max_age_hours: optional recency window. When both are set, an expected
       source whose latest run finished MORE than max_age_hours ago is a problem
       ("no fresh run this cycle") — closing the stale-row false-green where a
@@ -139,7 +139,7 @@ def read_latest_runs(conn) -> dict[str, dict]:
     }
 
 
-def format_report(result: dict, latest_by_source: dict, expected, known_dead) -> str:
+def format_report(result: dict, latest_by_source: dict, expected, optional) -> str:
     """Human-readable per-source report. No secrets — names/counts/stored errors only.
 
     Drives the per-source verdict off result["problems"] so the report can never
@@ -153,10 +153,10 @@ def format_report(result: dict, latest_by_source: dict, expected, known_dead) ->
             lines.append(f"  [FAIL] {source}: {prob['reason']}")
         else:
             lines.append(f"  [ok]   {source}: found={run['deals_found']}")
-    for source in known_dead:
+    for source in optional:
         run = latest_by_source.get(source)
         detail = "no row" if run is None else f"found={run.get('deals_found')}"
-        lines.append(f"  [dead] {source}: {detail} (known-dead, not alerting)")
+        lines.append(f"  [opt]  {source}: {detail} (optional, not alerting)")
     lines.append("HEALTHY" if result["ok"] else "UNHEALTHY")
     return "\n".join(lines)
 
@@ -179,7 +179,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
-    expected, known_dead = load_health_baseline(args.config)
+    expected, optional = load_health_baseline(args.config)
 
     # A source scrapes ~every cycle; allow ~2 freshness windows before alarming on
     # staleness (24h default -> 48h), so one delayed/missed run doesn't false-alert
@@ -195,8 +195,10 @@ def main(argv=None) -> int:
     finally:
         conn.close()
 
-    result = evaluate_health(latest, expected, known_dead, now=datetime.now(), max_age_hours=max_age)
-    print(format_report(result, latest, expected, known_dead))
+    result = evaluate_health(
+        latest, expected, optional, now=datetime.now(), max_age_hours=max_age
+    )
+    print(format_report(result, latest, expected, optional))
     return 0 if result["ok"] else 1
 
 

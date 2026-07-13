@@ -70,8 +70,8 @@ if all errored.
   → greyed, shown only with `include_stale=true`.
 - **active** — otherwise.
 
-**Geocoding** uses Nominatim (no key), cache-first and rate-limited; re-scrapes are
-nearly free because locations repeat.
+**Geocoding** uses the keyless US Census provider by default, cache-first and
+rate-limited; Google and Nominatim adapters are also available.
 
 ## Sources
 
@@ -80,12 +80,13 @@ interface, configured under `[sources.*]` in `config.toml`. Current status:
 
 | Source | Wired to | Status |
 |---|---|---|
+| `places_brand` | Curated Seattle storefront offers | **live** — one physical deal per storefront → geocoded map pins |
 | `slickdeals` | DealNews front page | **live** — server-rendered offer cards |
 | `local` | My Ballard RSS feed | **live** — online deals (feed has no location) |
-| `reddit` | `r/Seattle` JSON | blocked — Reddit returns 403 to a non-browser UA; needs a browser UA or OAuth |
-| `chains` | — | synthetic placeholder; no scrapeable Seattle-wide chain offers page found |
+| `chains` | Tom Douglas happy hours | **live** — one physical deal per named Seattle venue → geocoded map pins |
+| `reddit` | `r/Seattle` JSON | **live** — sends a browser UA to clear Reddit's 403; deal-signal pre-filter trims hot-feed noise (a live IP may still be rate-limited) |
 
-Blocked/placeholder sources scrape 0 deals and are recorded as such — expected, not
+Empty sources scrape 0 deals and are recorded as such — expected, not
 a failure. Adding a real source is a new `sources/<name>.py` plus a `[sources.<name>]`
 config block; the pipeline, API, and frontend need no changes.
 
@@ -153,8 +154,9 @@ Secrets — `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, optional `GOOGLE_MAPS_API_
 — live in GitHub Actions secrets and the Vercel dashboard, referenced by name only;
 `.env.example` holds empty placeholders. After each scrape, `python -m scrapers.health`
 compares `scrape_runs` against the `config.toml [health]` baseline and fails the
-workflow **only** when an *expected* source (`places_brand`, `slickdeals`, `local`)
-errors or returns 0 — the known-dead `reddit`/`chains` never alert.
+workflow **only** when an *expected* source (`places_brand`, `chains`,
+`slickdeals`, `local`) errors or returns 0. Reddit is reported but optional
+because runner IPs can be rate-limited.
 
 The full step-by-step runbook (Turso provisioning, seeding, Vercel project setup,
 GitHub Actions secrets, reading health, and **tearing down the old launchd job**) is

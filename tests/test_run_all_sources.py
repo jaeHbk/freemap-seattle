@@ -34,11 +34,13 @@ def _config() -> Config:
         sources={
             "reddit": {"subreddits": ["seattle"], "listing_urls": ["https://reddit.example/r/seattle.json"]},
             "chains": {
-                "offers_urls": ["https://seattlebeans.example/offers"],
-                "branches": {
-                    "Capitol Hill": "1429 12th Ave, Seattle, WA 98122",
-                    "Ballard": "5402 22nd Ave NW, Seattle, WA 98107",
-                    "Fremont": "3501 Fremont Ave N, Seattle, WA 98103",
+                "offers_urls": ["https://www.tomdouglas.com/happy-hour/"],
+                "venues": {
+                    "Half Shell": "2020 Western Ave, Seattle, WA 98121",
+                    "Palace Kitchen": "2030 5th Ave, Seattle, WA 98121",
+                    "Neb": "316 Virginia St, Seattle, WA 98121",
+                    "Serious Pie Downtown": "2001 4th Ave, Seattle, WA 98121",
+                    "Serious Pie Totem Lake": "12540 120th Ave NE #122, Kirkland, WA 98034",
                 },
             },
             "slickdeals": {"listing_urls": ["https://slickdeals.example/deals/free"]},
@@ -54,7 +56,7 @@ def _fixture_router():
     local_xml = (FIX / "local_feed.xml").read_text(encoding="utf-8")
 
     def fake_get(url, **kwargs):
-        if "seattlebeans" in url:
+        if "tomdouglas" in url:
             return _FakeResponse(chains_html)
         if "slickdeals" in url:
             return _FakeResponse(slickdeals_html)
@@ -74,9 +76,13 @@ def test_run_all_one_source_throws_others_still_upsert(monkeypatch):
     # Geocode every address/neighborhood the fixtures use so physical deals geocode "ok".
     geocoder = FakeGeocoder(
         {
-            "1429 12th Ave, Seattle, WA 98122": (47.6097, -122.3160),
-            "5402 22nd Ave NW, Seattle, WA 98107": (47.6680, -122.3850),
-            "3501 Fremont Ave N, Seattle, WA 98103": (47.6510, -122.3500),
+            # chains: the five Tom Douglas happy-hour venue addresses.
+            "2020 Western Ave, Seattle, WA 98121": (47.6109, -122.3430),
+            "2030 5th Ave, Seattle, WA 98121": (47.6135, -122.3380),
+            "316 Virginia St, Seattle, WA 98121": (47.6140, -122.3420),
+            "2001 4th Ave, Seattle, WA 98121": (47.6120, -122.3390),
+            "12540 120th Ave NE #122, Kirkland, WA 98034": (47.7160, -122.1830),
+            # local fixture addresses/neighborhoods.
             "1518 6th Ave, Seattle, WA 98101": (47.6110, -122.3370),
             "Capitol Hill, Seattle, WA": (47.6253, -122.3222),
             "5440 Ballard Ave NW, Seattle, WA 98107": (47.6670, -122.3830),
@@ -106,9 +112,9 @@ def test_run_all_one_source_throws_others_still_upsert(monkeypatch):
     assert "exploded" in summary["reddit"]["errors"]
     assert summary["reddit"]["upserted"] == 0
 
-    # The three healthy sources upserted their rows (chains expands 2 offers x 3 branches).
+    # The three healthy sources upserted their rows (chains = 5 venue happy hours).
     assert summary["chains"]["errors"] is None
-    assert summary["chains"]["upserted"] == 6
+    assert summary["chains"]["upserted"] == 5
     assert summary["slickdeals"]["errors"] is None
     # DealNews fixture has 2 valid OFFER cards (an ARTICLE card and an id-less
     # OFFER are correctly skipped).
@@ -116,7 +122,7 @@ def test_run_all_one_source_throws_others_still_upsert(monkeypatch):
     assert summary["local"]["errors"] is None
     assert summary["local"]["upserted"] == 2
 
-    # DB holds exactly the survivors' rows: 6 + 2 + 2 = 10, none from reddit.
+    # DB holds exactly the survivors' rows: 5 + 2 + 2 = 9, none from reddit.
     rows = fetch_all_deals(conn)
-    assert len(rows) == 10
+    assert len(rows) == 9
     assert all(r["source"] != "reddit" for r in rows)

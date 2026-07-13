@@ -96,8 +96,8 @@ listing_urls = ["https://test.local/reddit"]
 [sources.chains]
 offers_urls = ["https://test.local/chains"]
 
-[sources.chains.branches]
-"Capitol Hill" = "Capitol Hill, Seattle"
+[sources.chains.venues]
+"Half Shell" = "2020 Western Ave, Seattle, WA 98121"
 
 [sources.slickdeals]
 listing_urls = ["https://test.local/slickdeals"]
@@ -117,16 +117,16 @@ def test_full_offline_run_populates_db_and_scrape_runs(tmp_path, monkeypatch):
     # No live network: every source's httpx.get is served a recorded fixture.
     monkeypatch.setattr(httpx, "get", _fake_httpx_get)
 
-    # No live Nominatim: replace the geocoder main() builds with a FakeGeocoder.
+    # No live geocoder: replace the geocoder main() builds with a FakeGeocoder.
     # main() now picks its geocoder via make_geocoder(provider, conn, config), so
     # patch that factory to return the fake. Any Seattle-ish raw_location resolves;
     # misses -> None.
     fake = FakeGeocoder(
         {
             "Capitol Hill": (47.6253, -122.3222),
-            "Capitol Hill, Seattle": (47.6253, -122.3222),
             "Downtown Seattle": (47.6062, -122.3321),
             "Ballard": (47.6685, -122.3838),
+            "2020 Western Ave, Seattle, WA 98121": (47.6109, -122.3430),
         }
     )
     monkeypatch.setattr(run_module, "make_geocoder", lambda *a, **k: fake)

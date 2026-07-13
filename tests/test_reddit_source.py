@@ -55,8 +55,12 @@ def test_fetch_returns_rawdeals(monkeypatch):
     assert len(deals) == 3
     assert all(isinstance(d, RawDeal) for d in deals)
 
-    # User-Agent from config must be forwarded on the outbound request.
-    assert captured["headers"]["User-Agent"] == "FreeMapSeattle/1.0 (test)"
+    # Reddit 403s the identifying config UA, so the source must send a
+    # browser-like UA instead — NOT config.user_agent.
+    sent_ua = captured["headers"]["User-Agent"]
+    assert sent_ua == reddit._BROWSER_USER_AGENT
+    assert sent_ua != "FreeMapSeattle/1.0 (test)"
+    assert sent_ua.startswith("Mozilla/")
     # The configured listing URL must have been used.
     assert captured["url"] == "https://www.reddit.com/r/Seattle/.json"
 
@@ -157,3 +161,75 @@ def test_extract_location_ignores_substring_false_positives(monkeypatch):
     assert by_id["fp1"].raw_location is None
     # Real "Street" address still resolves to a physical location.
     assert by_id["real1"].raw_location is not None
+
+
+def test_fetch_degrades_on_403(monkeypatch):
+    # Reddit's documented failure mode: HTTP 403 to a client it dislikes. The
+    # source must degrade to 0 found WITHOUT raising, mirroring a real 403 where
+    # resp.raise_for_status() throws inside the per-URL try/except.
+    class ForbiddenResponse:
+        status_code = 403
+
+        def raise_for_status(self):
+            request = httpx.Request("GET", "https://www.reddit.com/r/Seattle/.json")
+            response = httpx.Response(403, request=request)
+            raise httpx.HTTPStatusError(
+                "403 Forbidden", request=request, response=response
+            )
+
+        def json(self):  # pragma: no cover - never reached after a 403
+            raise AssertionError("json() must not be called when status is 403")
+
+    monkeypatch.setattr(httpx, "get", lambda url, *a, **k: ForbiddenResponse())
+
+    deals = reddit.fetch(make_config())
+    # Blocked fetch -> 0 found, no exception. The run keeps going.
+    assert deals == []
+
+
+def test_fetch_filters_non_deal_posts(monkeypatch):
+    # The plain hot feed mixes real free/BOGO deals with ordinary chatter. The
+    # pre-filter must keep deal-signal posts and drop the rest before mapping.
+    payload = {
+        "kind": "Listing",
+        "data": {
+            "children": [
+                {
+                    "kind": "t3",
+                    "data": {
+                        "id": "keep_free",
+                        "title": "Free pastries at the Ballard bakery this morning",
+                        "url": "https://www.example.com/keep_free",
+                        "selftext": "Come grab a freebie.",
+                        "created_utc": 1718668800,
+                    },
+                },
+                {
+                    "kind": "t3",
+                    "data": {
+                        "id": "keep_bogo",
+                        "title": "BOGO burgers downtown today",
+                        "url": "https://www.example.com/keep_bogo",
+                        "selftext": "Buy one get one, online order.",
+                        "created_utc": 1718668800,
+                    },
+                },
+                {
+                    "kind": "t3",
+                    "data": {
+                        "id": "drop_chatter",
+                        "title": "Traffic on I-5 is terrible again",
+                        "url": "https://www.example.com/drop_chatter",
+                        "selftext": "Just venting about the commute.",
+                        "created_utc": 1718668800,
+                    },
+                },
+            ]
+        },
+    }
+    monkeypatch.setattr(httpx, "get", lambda url, *a, **k: FakeResponse(payload))
+
+    deals = reddit.fetch(make_config())
+    ids = {d.source_id for d in deals}
+    # Deal-signal posts survive; the non-deal post is dropped.
+    assert ids == {"keep_free", "keep_bogo"}

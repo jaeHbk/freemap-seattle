@@ -50,9 +50,9 @@ routes all writes to Turso instead of the local file:
 ./.venv/bin/python -m scrapers.run
 ```
 
-Expect per-source lines like `places_brand: found=9 upserted=9 ok`. `reddit` and `chains`
-are known-dead and are NOT in the enabled set, so they won't run. Exit code is `0` if any
-source succeeded.
+Expect per-source lines like `places_brand: found=9 upserted=9 ok`. All five
+configured sources run; Reddit may report 0 when the runner IP is rate-limited.
+Exit code is `0` if any source succeeded.
 
 ## 3. Vercel (the read app)
 
@@ -89,13 +89,13 @@ After each scrape the workflow runs the health check (`python -m scrapers.health
 reads the latest `scrape_runs` row per source and compares against the baseline in
 `config.toml [health]`:
 
-- `expected` = sources that MUST be healthy (`places_brand`, `slickdeals`, `local`).
-- `known_dead` = sources that are expected to be absent/empty (`reddit`, `chains`) and
-  are **never** alerted on.
+- `expected` = sources that MUST be healthy (`places_brand`, `chains`,
+  `slickdeals`, `local`).
+- `optional` = sources that are reported but do not fail the workflow (`reddit`,
+  because a live runner IP may be rate-limited).
 
-It exits non-zero (failing the workflow, which surfaces a GitHub notification) **only**
-when an expected source errored or returned 0 deals. The normal "2 of 4 sources dead"
-state does not page.
+It exits non-zero (failing the workflow, which surfaces a GitHub notification)
+**only** when an expected source errored or returned 0 deals.
 
 `scrape_runs` is the durable per-source log (columns: `source`, `started_at`,
 `finished_at`, `deals_found`, `errors`; `errors IS NULL` means that run succeeded).
