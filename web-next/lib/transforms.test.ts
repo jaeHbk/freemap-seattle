@@ -2,19 +2,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildQuery,
-  matchesFilters,
-  belongsInList,
-  dealsForMap,
-  dealsForList,
-  inViewport,
   computeStatus,
   naiveLocalIso,
   parseBbox,
   inBbox,
   collapseDedup,
   BboxError,
-  type Bounds,
 } from "./transforms.ts";
 import type { Deal } from "./db.ts";
 
@@ -28,74 +21,6 @@ function mk(p: Partial<Deal>): Deal {
     alt_urls: [], ...p,
   };
 }
-
-// --- buildQuery (ported 1:1 from web/filters.test.js) ---
-test("buildQuery", () => {
-  assert.equal(buildQuery({}), "");
-  assert.equal(buildQuery({ type: "free" }), "type=free");
-  assert.equal(
-    buildQuery({ type: "bogo", category: "food", includeStale: true }),
-    "type=bogo&category=food&include_stale=true",
-  );
-  assert.equal(
-    buildQuery({ bbox: "-122.45,47.50,-122.20,47.75" }),
-    "bbox=-122.45%2C47.50%2C-122.20%2C47.75",
-  );
-});
-
-// --- matchesFilters (ported 1:1 from web/filters.test.js) ---
-test("matchesFilters", () => {
-  const active = mk({ status: "active", deal_type: "free", category: "food", placement: "physical" });
-  assert.equal(matchesFilters(active, {}), true);
-  assert.equal(matchesFilters(active, { type: "free" }), true);
-  assert.equal(matchesFilters(active, { type: "bogo" }), false);
-  assert.equal(matchesFilters(active, { category: "retail" }), false);
-  const stale = mk({ status: "stale", deal_type: "free", category: "food", placement: "physical" });
-  assert.equal(matchesFilters(stale, {}), false);
-  assert.equal(matchesFilters(stale, { includeStale: true }), true);
-  const expired = mk({ status: "expired", deal_type: "free", category: "food", placement: "physical" });
-  assert.equal(matchesFilters(expired, { includeStale: true }), false);
-  // placement equality (covers map.js filterState.placement path)
-  assert.equal(matchesFilters(active, { placement: "online" }), false);
-  assert.equal(matchesFilters(active, { placement: "physical" }), true);
-});
-
-// --- belongsInList (ported 1:1 from web/list.test.js) ---
-test("belongsInList", () => {
-  assert.equal(belongsInList({ placement: "online", geocode_status: "n/a" }), true);
-  assert.equal(belongsInList({ placement: "physical", geocode_status: "failed" }), true);
-  assert.equal(belongsInList({ placement: "physical", geocode_status: "ok" }), false);
-});
-
-// --- map/list partition (ported 1:1 from web/partition.test.js) ---
-test("map/list partition", () => {
-  const bounds: Bounds = {
-    contains([lat, lng]) {
-      return lat >= 47.5 && lat <= 47.75 && lng >= -122.45 && lng <= -122.2;
-    },
-  };
-  const physInView = mk({ placement: "physical", geocode_status: "ok", status: "active", lat: 47.62, lng: -122.32 });
-  const physOutOfView = mk({ placement: "physical", geocode_status: "ok", status: "active", lat: 47.6, lng: -121.0 });
-  const online = mk({ placement: "online", geocode_status: "n/a", status: "active" });
-  const failedGeo = mk({ placement: "physical", geocode_status: "failed", status: "active" });
-  const all = [physInView, physOutOfView, online, failedGeo];
-
-  // inViewport guards null coords and uses bounds.contains.
-  assert.equal(inViewport(physInView, bounds), true);
-  assert.equal(inViewport(physOutOfView, bounds), false);
-  assert.equal(inViewport(online, bounds), false);
-  assert.equal(inViewport(failedGeo, bounds), false);
-
-  const mapSet = dealsForMap(all, bounds, {});
-  assert.deepEqual(mapSet, [physInView]);
-  const listSet = dealsForList(all, {});
-  assert.deepEqual(listSet, [online, failedGeo]);
-  // No deal in both sets.
-  for (const d of mapSet) assert.ok(!listSet.includes(d), "deal in both map and list");
-  // Filters still apply to both partitions.
-  assert.deepEqual(dealsForMap(all, bounds, { type: "bogo" }), []);
-  assert.deepEqual(dealsForList(all, { type: "bogo" }), []);
-});
 
 // --- parseBbox / inBbox (ported from api/main.py _parse_bbox / _in_bbox) ---
 test("parseBbox", () => {

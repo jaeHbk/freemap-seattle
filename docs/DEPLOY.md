@@ -1,130 +1,146 @@
-# Deploy & operate
+# Deploy and operate
 
-FreeMap Seattle runs as three decoupled pieces that share only the database:
+FreeMap production has three pieces:
 
-- **Turso (libSQL)** — the single source of truth in production (replaces the local
-  `db/deals.db` file, which serverless functions can't persist).
-- **GitHub Actions** — a scheduled job that scrapes into Turso every 12h
-  (replaces the machine-local `launchd` job).
-- **Vercel** — hosts the Next.js app (`web-next/`), whose route handlers read Turso
-  over HTTP at request time.
+- Turso stores deals, geocode cache entries, and scrape history.
+- GitHub Actions writes to Turso every 12 hours.
+- Vercel hosts `web-next/` and reads Turso at request time.
 
-```
-GitHub Actions (cron 12h) --writes--> Turso (libSQL) <--reads-- Vercel (web-next)
-        scrapers.run                  deals, scrape_runs            route handlers
-```
+All credentials live in provider secret stores. Never commit or print a Turso
+token.
 
-All secrets (`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, optional `GOOGLE_MAPS_API_KEY`)
-are referenced by name only. They live in GitHub Actions secrets and the Vercel
-dashboard — never in the repo. `.env.example` holds empty placeholders; `.env.local`
-is gitignored. **Never commit a real token.**
-
----
-
-## 1. Provision Turso (one time, human with the Turso CLI)
+## 1. Provision Turso
 
 ```bash
-turso db create freemap                 # create the database
-turso db show freemap --url             # -> TURSO_DATABASE_URL (libsql://...)
-turso db tokens create freemap          # -> TURSO_AUTH_TOKEN (secret, shown once)
+turso db create freemap
+turso db show freemap --url
+turso db tokens create freemap
 ```
 
-Apply the schema (idempotent — `db/schema.sql` is all `CREATE ... IF NOT EXISTS`):
+Export the returned values in the current shell, then apply the schema:
 
 ```bash
-export TURSO_DATABASE_URL='libsql://...'      # from `turso db show`
-export TURSO_AUTH_TOKEN='...'                 # from `turso db tokens create`
+export TURSO_DATABASE_URL='libsql://...'
+export TURSO_AUTH_TOKEN='...'
+export FREEMAP_REQUIRE_TURSO=1
 ./.venv/bin/python -m scripts.migrate_turso
 ```
 
-`migrate_turso` refuses to run unless both vars are set, and does a read-back SELECT
-to prove the schema reached the remote (a clean return alone is not proof). On success
-it prints `Turso schema applied and verified (idempotent).` without echoing the URL/token.
+The migration is idempotent and verifies the remote schema with a read-back
+query. A successful run prints:
 
-## 2. Seed the data (run the scraper once against Turso)
+```text
+Turso schema applied and verified (idempotent).
+```
 
-With the same two vars still exported, `scrapers/db.py connect()` auto-detects them and
-routes all writes to Turso instead of the local file:
+## 2. Seed and verify Turso
+
+With the same environment:
 
 ```bash
 ./.venv/bin/python -m scrapers.run
+./.venv/bin/python -m scrapers.health
 ```
 
-Expect per-source lines like `places_brand: found=9 upserted=9 ok`. All five
-configured sources run; Reddit may report 0 when the runner IP is rate-limited.
-Exit code is `0` if any source succeeded.
+`places_brand` is required and should produce the configured geocoded Seattle
+pins. `reddit` is optional and may return zero or encounter rate limiting.
 
-## 3. Vercel (the read app)
-
-1. Import the GitHub repo at <https://vercel.com/new>.
-2. **Root Directory: `web-next`** (set in the Vercel dashboard, Project Settings →
-   General → Root Directory). Next.js is auto-detected — no `vercel.json` is needed.
-3. Add environment variables (Project Settings → Environment Variables), all
-   environments (Production + Preview):
-   - `TURSO_DATABASE_URL`
-   - `TURSO_AUTH_TOKEN`
-   - `GOOGLE_MAPS_API_KEY` *(optional — only if a keyed geocoder/places provider is
-     enabled; the read app itself does not require it)*
-4. Deploy. The route handlers declare `export const dynamic = "force-dynamic"`
-   (`web-next/app/api/deals/route.ts`), so each request reads live from Turso — no stale
-   cached build output.
-
-## 4. GitHub Actions secrets (the scheduled scrape)
-
-The committed workflow `.github/workflows/scrape.yml` runs `python -m scrapers.run` on a
-12h cron (and on `workflow_dispatch`). Add the **same three** secrets at
-Repo → Settings → Secrets and variables → Actions → New repository secret:
-
-- `TURSO_DATABASE_URL`
-- `TURSO_AUTH_TOKEN`
-- `GOOGLE_MAPS_API_KEY` *(optional; only if the keyed geocoder/places provider is on)*
-
-The workflow exposes them to the run via `env: ${{ secrets.NAME }}` — they never appear
-in logs or the repo. Run it once by hand: Actions tab → the scrape workflow → **Run
-workflow** (`workflow_dispatch`), then confirm Turso counts increased.
-
-## 5. Reading health
-
-After each scrape the workflow runs the health check (`python -m scrapers.health`). It
-reads the latest `scrape_runs` row per source and compares against the baseline in
-`config.toml [health]`:
-
-- `expected` = sources that MUST be healthy (`places_brand`, `chains`,
-  `slickdeals`, `local`).
-- `optional` = sources that are reported but do not fail the workflow (`reddit`,
-  because a live runner IP may be rate-limited).
-
-It exits non-zero (failing the workflow, which surfaces a GitHub notification)
-**only** when an expected source errored or returned 0 deals.
-
-`scrape_runs` is the durable per-source log (columns: `source`, `started_at`,
-`finished_at`, `deals_found`, `errors`; `errors IS NULL` means that run succeeded).
-Inspect it directly any time:
+Verify scoped rows and coordinates:
 
 ```bash
 turso db shell freemap \
-  "SELECT source, finished_at, deals_found, errors FROM scrape_runs \
-   ORDER BY finished_at DESC LIMIT 10"
+  "SELECT source, deal_type, COUNT(*) AS deals, \
+   SUM(CASE WHEN lat IS NOT NULL AND lng IS NOT NULL THEN 1 ELSE 0 END) AS pins \
+   FROM deals GROUP BY source, deal_type; \
+   SELECT source, deals_found, errors, finished_at \
+   FROM scrape_runs ORDER BY id DESC LIMIT 4;"
 ```
 
-The Next app also exposes a recency badge via `/api/meta`.
+## 3. Configure GitHub Actions
 
-## 6. Tear down the old launchd job (human step — do this only after GH Actions is green)
+Add these repository Actions secrets:
 
-The old scheduler is a machine-local `launchd` LaunchAgent (`com.freemap.scrape`). It is
-**not** in the repo and is a live system job — leave it running until the GitHub Actions
-scrape has succeeded at least once against Turso, then the human removes it:
+- `TURSO_DATABASE_URL`
+- `TURSO_AUTH_TOKEN`
+- `GOOGLE_MAPS_API_KEY` only when the Google provider is selected
+
+The workflow sets `FREEMAP_REQUIRE_TURSO=1`, so missing or incomplete Turso
+secrets fail before any SQLite fallback can occur.
+
+Dispatch `.github/workflows/scrape.yml` once and wait for both steps:
+
+1. `Scrape into Turso`
+2. `Source health check`
+
+The health baseline is:
+
+- `expected = ["places_brand"]`
+- `optional = ["reddit"]`
+- `minimum_pins = { places_brand = 1 }`
+
+Health fails when the latest required run is missing, stale, errored, or found
+zero deals. It also fails when the current scrape produces no geocoded map pin.
+
+## 4. Deploy Vercel
+
+Import the GitHub repository and configure:
+
+- Root Directory: `web-next`
+- Framework: Next.js
+- `TURSO_DATABASE_URL`: Production, Preview, Development
+- `TURSO_AUTH_TOKEN`: Production, Preview, Development
+
+The route handlers are dynamic and read Turso for each request. The Vercel
+runtime refuses to fall back to a local database when `TURSO_DATABASE_URL` is
+missing.
+
+After deployment, verify:
 
 ```bash
-# 1. Confirm the GH Actions scrape ran green and Turso has fresh rows first.
-launchctl bootout gui/$(id -u)/com.freemap.scrape          # stop & unload the agent
-rm ~/Library/LaunchAgents/com.freemap.scrape.plist         # remove the plist
+curl --fail --silent --show-error https://YOUR_DOMAIN/api/meta
+curl --fail --silent --show-error https://YOUR_DOMAIN/api/deals
+curl --fail --silent --show-error \
+  'https://YOUR_DOMAIN/api/deals?bbox=-122.45,47.50,-122.20,47.75'
 ```
 
-After teardown, `launchctl print gui/$(id -u)/com.freemap.scrape` should report it as not
-found. The local `logs/` dir (gitignored) can also be removed. From then on, GitHub
-Actions is the only scheduler.
+Also open the production page at desktop and mobile widths. Confirm the map
+tiles render, Seattle pins are visible, filters work, list/map tabs are
+keyboard-operable, and no controls overlap.
 
----
+## 5. Retire the legacy scheduler
 
-See `.env.example` for the full list of environment variables (placeholders only).
+Only after the manually dispatched GitHub Actions run is green and Turso shows
+fresh rows:
+
+```bash
+launchctl bootout gui/$(id -u)/com.freemap.scrape
+rm ~/Library/LaunchAgents/com.freemap.scrape.plist
+```
+
+Verify it is gone:
+
+```bash
+launchctl print gui/$(id -u)/com.freemap.scrape
+```
+
+`launchctl print` should report that the service was not found. GitHub Actions
+is then the sole production scheduler.
+
+## 6. Routine checks
+
+Inspect recent source health:
+
+```bash
+turso db shell freemap \
+  "SELECT source, finished_at, deals_found, errors \
+   FROM scrape_runs ORDER BY id DESC LIMIT 10;"
+```
+
+Inspect the app's serving metadata:
+
+```bash
+curl --fail --silent --show-error https://YOUR_DOMAIN/api/meta
+```
+
+Keep `chains`, `slickdeals`, and `local` disabled unless their output is proven
+to be consistently in FreeMap's Free/BOGO scope.

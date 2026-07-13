@@ -1,4 +1,7 @@
 from scrapers.config import Config, load_config
+from scrapers.health import load_health_baseline, load_minimum_pins
+from scrapers.pipeline import classify
+from scrapers.sources import places_brand
 
 
 def test_load_config_reads_all_canonical_fields(tmp_path):
@@ -68,7 +71,7 @@ def test_load_config_applies_defaults_when_tables_absent(tmp_path):
     assert cfg.user_agent  # non-empty default User-Agent
     assert cfg.geocoder_min_interval_seconds == 1.0
     assert cfg.geocoder_max_live_calls == 200
-    assert cfg.sources_enabled == ["reddit", "chains", "slickdeals", "local"]
+    assert cfg.sources_enabled == ["places_brand", "reddit"]
     assert cfg.sources == {}
 
 
@@ -76,9 +79,19 @@ def test_committed_config_toml_loads_and_sources_reachable():
     # The real committed config at repo root must load and expose its source blocks.
     cfg = load_config("config.toml")
     assert cfg.metro == "seattle"
-    # places_brand is the map-filling source and must be enabled; reddit/chains are
-    # known-dead and intentionally dropped from the enabled set (their blocks remain
-    # in the file for reference/reachability).
-    assert "places_brand" in cfg.sources_enabled
+    assert cfg.sources_enabled == ["places_brand", "reddit"]
     assert cfg.sources["places_brand"]["brands"]  # reachable, non-empty
     assert cfg.sources["reddit"]["subreddits"]  # block still reachable as a plain dict
+    expected, optional = load_health_baseline("config.toml")
+    assert expected == ["places_brand"]
+    assert optional == ["reddit"]
+    assert load_minimum_pins("config.toml") == {"places_brand": 1}
+
+
+def test_committed_brand_offers_are_scoped_food_deals():
+    cfg = load_config("config.toml")
+    deals = [classify(raw) for raw in places_brand.fetch(cfg)]
+
+    assert deals
+    assert {deal.deal_type for deal in deals} <= {"free", "bogo"}
+    assert {deal.category for deal in deals} == {"food"}

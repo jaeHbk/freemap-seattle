@@ -56,6 +56,17 @@ def test_local_connect_unchanged_when_no_turso_env(monkeypatch, tmp_path):
     conn.close()
 
 
+def test_required_turso_refuses_local_fallback(monkeypatch, tmp_path):
+    monkeypatch.setenv("FREEMAP_REQUIRE_TURSO", "1")
+    monkeypatch.delenv("TURSO_DATABASE_URL", raising=False)
+    monkeypatch.delenv("TURSO_AUTH_TOKEN", raising=False)
+
+    with pytest.raises(RuntimeError, match="Turso credentials are required"):
+        db.connect(str(tmp_path / "must-not-be-created.db"))
+
+    assert not (tmp_path / "must-not-be-created.db").exists()
+
+
 def test_turso_branch_taken_only_when_both_env_present(monkeypatch, tmp_path):
     # Only URL set -> still local sqlite3 (need BOTH).
     monkeypatch.setenv("TURSO_DATABASE_URL", "libsql://x")

@@ -14,7 +14,7 @@ class Config:
     user_agent: str                             # HTTP User-Agent for ALL outbound requests incl. Nominatim
     geocoder_min_interval_seconds: float        # 1.0
     geocoder_max_live_calls: int                # 200
-    sources_enabled: list[str]                  # ["reddit", "chains", "slickdeals", "local"]
+    sources_enabled: list[str]                  # ["places_brand", "reddit"]
     sources: dict = field(default_factory=dict) # per-source settings
     # Defaulted so existing Config(...) call sites (tests) need no change.
     geocoder_provider: str = "census"            # "census" (keyless default) | "google" (GOOGLE_MAPS_API_KEY) | "nominatim"
@@ -44,7 +44,7 @@ def load_config(path: str = "config.toml") -> Config:
         geocoder_min_interval_seconds=geocoder.get("min_interval_seconds", 1.0),
         geocoder_max_live_calls=geocoder.get("max_live_calls", 200),
         sources_enabled=meta.get(
-            "sources_enabled", ["reddit", "chains", "slickdeals", "local"]
+            "sources_enabled", ["places_brand", "reddit"]
         ),
         sources=sources,
     )

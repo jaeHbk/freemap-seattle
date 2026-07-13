@@ -1,6 +1,8 @@
-"""local source: parse a recorded local-deals RSS feed into physical RawDeals.
-Each item carries a Seattle location, so the pipeline classifies these as physical.
-Reads config.user_agent and config.sources["local"]["feed_urls"]."""
+"""local source: parse MyBallard's RSS feed into online RawDeals.
+
+The real feed has no location element, so its rows are list-only. This parser is
+retained for future scoped use but is disabled in the production source set.
+"""
 
 from __future__ import annotations
 

@@ -2,12 +2,15 @@
 
 The core decision is the PURE function evaluate_health(latest_by_source, expected,
 optional) -> {"ok": bool, "problems": [...]}, so these tests need no DB. The
-baseline mirrors config.toml [health]: the four stable sources are expected and
+baseline mirrors config.toml [health]: places_brand is required and
 rate-limit-prone Reddit is optional.
 """
-from scrapers.health import evaluate_health
+from datetime import datetime, timedelta
 
-EXPECTED = ["places_brand", "chains", "slickdeals", "local"]
+from scrapers.health import evaluate_health, read_fresh_pin_counts
+from tests.conftest import FIXED_NOW
+
+EXPECTED = ["places_brand"]
 OPTIONAL = ["reddit"]
 
 
@@ -19,9 +22,6 @@ def _run(found, errors=None):
 def test_all_expected_healthy_is_ok():
     latest = {
         "places_brand": _run(9),
-        "chains": _run(5),
-        "slickdeals": _run(50),
-        "local": _run(30),
         # Optional Reddit may be rate-limited without failing the run.
         "reddit": _run(0),
     }
@@ -33,9 +33,6 @@ def test_all_expected_healthy_is_ok():
 def test_expected_source_errored_fails():
     latest = {
         "places_brand": _run(0, errors="Places API 500"),
-        "chains": _run(5),
-        "slickdeals": _run(50),
-        "local": _run(30),
     }
     result = evaluate_health(latest, EXPECTED, OPTIONAL)
     assert result["ok"] is False
@@ -44,24 +41,55 @@ def test_expected_source_errored_fails():
 
 def test_expected_source_zero_found_fails():
     latest = {
-        "places_brand": _run(9),
-        "chains": _run(5),
-        "slickdeals": _run(0),  # no error, but found nothing — still a failure
-        "local": _run(30),
+        "places_brand": _run(0),  # no error, but found nothing — still a failure
     }
     result = evaluate_health(latest, EXPECTED, OPTIONAL)
     assert result["ok"] is False
     problems = {p["source"] for p in result["problems"]}
-    assert problems == {"slickdeals"}
+    assert problems == {"places_brand"}
+
+
+def test_expected_source_without_required_map_pins_fails():
+    result = evaluate_health(
+        {"places_brand": _run(15)},
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 0},
+        minimum_pins={"places_brand": 1},
+    )
+
+    assert result["ok"] is False
+    assert result["problems"][0]["reason"] == (
+        "found 0 fresh map pins (minimum: 1)"
+    )
+
+
+def test_expected_source_with_required_map_pins_passes():
+    result = evaluate_health(
+        {"places_brand": _run(15)},
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 14},
+        minimum_pins={"places_brand": 1},
+    )
+
+    assert result["ok"] is True
+
+
+def test_fresh_pin_query_excludes_old_failed_online_and_expired_rows(seeded_db):
+    conn, _ = seeded_db
+
+    counts = read_fresh_pin_counts(
+        conn, FIXED_NOW - timedelta(hours=2), FIXED_NOW
+    )
+
+    assert counts == {"reddit": 1, "slickdeals": 2}
 
 
 def test_optional_source_failure_is_still_ok():
     """A rate-limited Reddit run must not make the health gate fail."""
     latest = {
         "places_brand": _run(9),
-        "chains": _run(5),
-        "slickdeals": _run(50),
-        "local": _run(30),
         "reddit": _run(0, errors="403 Forbidden"),
     }
     result = evaluate_health(latest, EXPECTED, OPTIONAL)
@@ -72,12 +100,7 @@ def test_optional_source_failure_is_still_ok():
 def test_missing_expected_source_fails():
     """An expected source with no scrape_runs row at all (never ran / row lost) is a
     failure — silence is not health."""
-    latest = {
-        "slickdeals": _run(50),
-        "local": _run(30),
-        "chains": _run(5),
-        # places_brand entirely absent
-    }
+    latest = {}  # places_brand entirely absent
     result = evaluate_health(latest, EXPECTED, OPTIONAL)
     assert result["ok"] is False
     problems = {p["source"] for p in result["problems"]}
@@ -85,8 +108,6 @@ def test_missing_expected_source_fails():
 
 
 # --- recency / stale-row false-green guard ----------------------------------
-from datetime import datetime, timedelta  # noqa: E402
-
 _NOW = datetime(2026, 6, 27, 12, 0, 0)
 
 
@@ -103,9 +124,6 @@ def test_stale_healthy_row_fails_when_recency_enabled():
     cycle must FAIL when a recency window is set — the dangerous false-green."""
     latest = {
         "places_brand": _run_at(9, hours_ago=72),   # 3 days old -> stale
-        "chains": _run_at(5, hours_ago=1),
-        "slickdeals": _run_at(50, hours_ago=1),
-        "local": _run_at(30, hours_ago=1),
     }
     result = evaluate_health(latest, EXPECTED, OPTIONAL, now=_NOW, max_age_hours=48)
     assert result["ok"] is False

@@ -18,6 +18,7 @@ import httpx
 
 from scrapers.config import Config
 from scrapers.contract import RawDeal
+from scrapers.deal_scope import is_target_deal
 
 # Browser-like User-Agent sent ONLY on Reddit requests. Reddit 403s bare clients
 # (the project's default identifying UA included), so we present a common desktop
@@ -28,31 +29,9 @@ _BROWSER_USER_AGENT = (
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 
-# Deal-signal substrings used as a server-free precision pre-filter. The plain
-# hot feed has no q=free filter, so most posts are not deals; classify() would
-# bucket them as deal_type="other" anyway. Dropping non-signal posts here keeps
-# the DB free of noise without a server-side query (no extra request, no auth).
-# Substring matching mirrors classify()'s own free/BOGO vocabulary so the
-# pre-filter never rejects a post the classifier would have called free/bogo.
-_DEAL_SIGNALS = (
-    "free",
-    "bogo",
-    "buy one",
-    "b1g1",
-    "giveaway",
-    "giving away",
-)
-
-
 def _is_deal_candidate(title: str, selftext: str | None) -> bool:
-    """True if the post text carries a free/BOGO deal signal.
-
-    Conservative pre-filter: matches the same vocabulary classify() uses to set
-    deal_type, so a kept post is one the classifier could label free/bogo. Posts
-    with no signal are plain hot-feed chatter and are dropped before mapping.
-    """
-    haystack = f"{title} {selftext or ''}".lower()
-    return any(signal in haystack for signal in _DEAL_SIGNALS)
+    """True when the canonical scope module classifies the post Free/BOGO."""
+    return is_target_deal(title, selftext)
 
 
 # Lower-cased substrings that signal a physical Seattle location in free text.

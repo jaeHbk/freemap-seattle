@@ -18,7 +18,7 @@ def _config() -> Config:
         geocoder_min_interval_seconds=1.0,
         geocoder_max_live_calls=200,
         sources_enabled=["local"],
-        sources={"local": {"feed_urls": ["https://localdeals.example/seattle/feed.xml"]}},
+        sources={"local": {"feed_urls": ["https://www.myballard.com/feed/"]}},
     )
 
 
@@ -49,25 +49,31 @@ def test_local_fetch_parses_feed(monkeypatch):
     assert captured["headers"]["User-Agent"] == "FreeMapSeattle/1.0 (test)"
 
     by_id = {d.source_id: d for d in deals}
-    assert set(by_id) == {"local-2026-0001", "local-2026-0002"}
+    assert set(by_id) == {
+        "https://www.myballard.com/?p=342312",
+        "https://www.myballard.com/?p=341510",
+    }
 
-    # All local deals are physical -> raw_location populated
-    assert by_id["local-2026-0001"].raw_location == "Capitol Hill, Seattle, WA"
-    assert by_id["local-2026-0002"].raw_location == "5440 Ballard Ave NW, Seattle, WA 98107"
-    assert by_id["local-2026-0001"].url == "https://localdeals.example/seattle/0001-free-scoop"
+    # The real MyBallard feed has no location element, so rows are online/list-only.
+    assert all(d.raw_location is None for d in deals)
+    first = by_id["https://www.myballard.com/?p=342312"]
+    assert first.url == (
+        "https://www.myballard.com/2026/07/13/"
+        "music-dancing-and-lutefisk-a-look-back-at-ballard-music-seafoodfest/"
+    )
 
     # pubDate parsed into posted_at
-    assert by_id["local-2026-0001"].posted_at is not None
-    assert by_id["local-2026-0001"].posted_at.year == 2026
-    assert by_id["local-2026-0001"].posted_at.month == 6
-    assert by_id["local-2026-0001"].posted_at.day == 15
+    assert first.posted_at is not None
+    assert first.posted_at.year == 2026
+    assert first.posted_at.month == 7
+    assert first.posted_at.day == 13
 
 
 def _config_two_urls() -> Config:
     cfg = _config()
     cfg.sources["local"]["feed_urls"] = [
-        "https://localdeals.example/bad",
-        "https://localdeals.example/seattle/feed.xml",
+        "https://www.myballard.com/bad",
+        "https://www.myballard.com/feed/",
     ]
     return cfg
 
@@ -86,7 +92,10 @@ def test_local_fetch_skips_failing_url(monkeypatch):
     deals = local.fetch(_config_two_urls())
 
     assert len(deals) == 2
-    assert {d.source_id for d in deals} == {"local-2026-0001", "local-2026-0002"}
+    assert {d.source_id for d in deals} == {
+        "https://www.myballard.com/?p=342312",
+        "https://www.myballard.com/?p=341510",
+    }
 
 
 def test_local_fetch_skips_malformed_feed(monkeypatch):
@@ -104,7 +113,10 @@ def test_local_fetch_skips_malformed_feed(monkeypatch):
     deals = local.fetch(_config_two_urls())
 
     assert len(deals) == 2
-    assert {d.source_id for d in deals} == {"local-2026-0001", "local-2026-0002"}
+    assert {d.source_id for d in deals} == {
+        "https://www.myballard.com/?p=342312",
+        "https://www.myballard.com/?p=341510",
+    }
 
 
 def test_local_fetch_skips_guidless_item(monkeypatch):

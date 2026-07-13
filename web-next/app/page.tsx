@@ -93,6 +93,9 @@ export default function Home() {
   const mapDeals = React.useMemo(() => dealsForMap(deals, filters), [deals, filters]);
   const listDeals = React.useMemo(() => dealsForList(deals, filters), [deals, filters]);
   const visibleCount = view === "map" ? mapDeals.length : listDeals.length;
+  const hasActiveFilters = Boolean(
+    filters.type || filters.category || filters.placement || filters.includeStale,
+  );
 
   const clearFilters = React.useCallback(() => setFilters(EMPTY_FILTERS), []);
 
@@ -181,7 +184,10 @@ export default function Home() {
               tabIndex={0}
               className="h-[calc(100dvh-9rem)] min-h-[420px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
-              <DealMap deals={mapDeals} />
+              <DealMap
+                deals={mapDeals}
+                onClearFilters={hasActiveFilters ? clearFilters : undefined}
+              />
             </section>
           ) : (
             <section

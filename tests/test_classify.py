@@ -19,8 +19,20 @@ def test_deal_type_free():
     assert classify(_raw(title="Free coffee today")).deal_type == "free"
 
 
+def test_deal_type_free_requires_a_complete_word():
+    assert classify(_raw(title="Deep Freeze cooler")).deal_type == "other"
+
+
+def test_deal_type_giveaway_is_free():
+    assert classify(_raw(title="Neighborhood book giveaway")).deal_type == "free"
+
+
 def test_deal_type_bogo_overrides_free_via_buy_one():
     assert classify(_raw(title="Buy one get one free pizza")).deal_type == "bogo"
+
+
+def test_deal_type_buy_one_without_get_one_is_not_bogo():
+    assert classify(_raw(title="Buy one pizza for ten dollars")).deal_type == "other"
 
 
 def test_deal_type_bogo_via_b1g1():

@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createClient, type Client, type Row } from "@libsql/client";
 
 // Live path: Turso via env. Local dev: the repo's sqlite file. NEVER hardcode a
@@ -13,18 +15,27 @@ const LOCAL_DB_URL = "file:../db/deals.db";
 export function getClient(): Client {
   if (_client) return _client;
   const url = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
+  if ((url && !authToken) || (!url && authToken)) {
+    throw new Error(
+      "TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set together.",
+    );
+  }
   // In production (Vercel) the Turso URL is REQUIRED. Without this guard a missing
   // or typo'd env var silently falls back to a nonexistent local file and surfaces
   // as an opaque request-time 500; fail fast with a clear message instead.
-  if (!url && (process.env.VERCEL || process.env.NODE_ENV === "production")) {
+  if (
+    (!url || !authToken) &&
+    (process.env.VERCEL || process.env.NODE_ENV === "production")
+  ) {
     throw new Error(
-      "TURSO_DATABASE_URL is not set. Set it (and TURSO_AUTH_TOKEN) in the Vercel " +
-        "project env — see docs/DEPLOY.md.",
+      "Turso credentials are not set. Configure TURSO_DATABASE_URL and " +
+        "TURSO_AUTH_TOKEN in Vercel; see docs/DEPLOY.md.",
     );
   }
   _client = createClient({
     url: url ?? LOCAL_DB_URL,
-    authToken: process.env.TURSO_AUTH_TOKEN,
+    authToken,
   });
   return _client;
 }
