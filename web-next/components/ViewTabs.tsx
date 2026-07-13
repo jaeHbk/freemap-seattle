@@ -61,7 +61,7 @@ function Tab({
       id={TAB_IDS[value]}
       aria-controls={PANEL_IDS[value]}
       className={cn(
-        "group/tab relative z-10 inline-flex select-none items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors",
+        "group/tab relative z-10 inline-flex select-none items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition-colors sm:px-4",
         "text-muted-foreground data-[selected]:text-primary-foreground",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       )}
