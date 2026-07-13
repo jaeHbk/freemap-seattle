@@ -111,7 +111,7 @@ export default function Home() {
 
       {/* Topbar */}
       <header className="sticky top-0 z-[600] border-b border-border bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-[1400px] items-center gap-4 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-[1400px] flex-wrap items-center gap-4 px-4 py-3 md:flex-nowrap md:px-6">
           {/* The brand IS the page H1 — the document's top-level heading. */}
           <h1 className="m-0">
             <Link href="/" className="flex items-center gap-2.5">
