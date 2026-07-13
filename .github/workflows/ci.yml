@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Python tests
+        run: pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web-next/package-lock.json
+
+      - name: Run legacy frontend tests
+        run: node --test web/*.test.js
+
+      - name: Install Next.js dependencies
+        working-directory: web-next
+        run: npm ci
+
+      - name: Run Next.js unit tests
+        working-directory: web-next
+        run: npm test
+
+      - name: Lint Next.js
+        working-directory: web-next
+        run: npm run lint
+
+      - name: Build Next.js
+        working-directory: web-next
+        run: npm run build

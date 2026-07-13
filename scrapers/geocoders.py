@@ -1,13 +1,12 @@
 """Pluggable geocoders, all behind the same `.geocode(raw_location)->(lat,lng)|None`
 duck type the pipeline already calls (pipeline.py geocode_deal).
 
-The base Geocoder (Nominatim, cache-first, rate-limited) lives in geocode.py and
-stays the keyless default. GoogleGeocoder here overrides ONLY the single live HTTP
-call, inheriting the geocode_cache + rate-limit/cap machinery wholesale.
+The base Geocoder (Nominatim, cache-first, rate-limited) lives in geocode.py.
+CensusGeocoder is the hosted keyless default. GoogleGeocoder overrides only the
+single live HTTP call; both reuse the cache, rate limit, and call cap.
 
 `make_geocoder(provider, conn, config)` picks the implementation by config; an
-unknown provider or a missing key falls back to Nominatim so a scrape never breaks
-just because no key is set."""
+unknown provider or a missing Google key falls back to Census."""
 
 from __future__ import annotations
 

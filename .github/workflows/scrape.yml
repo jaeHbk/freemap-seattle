@@ -41,6 +41,7 @@ jobs:
 
       - name: Scrape into Turso
         env:
+          FREEMAP_REQUIRE_TURSO: "1"
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
@@ -48,9 +49,9 @@ jobs:
 
       - name: Source health check
         # continue-on-error left at its default (false): a sick expected-healthy
-        # source must fail the job. health.py never alerts on the known-dead
-        # sources (reddit, chains).
+        # source must fail the job. Reddit is reported but optional.
         env:
+          FREEMAP_REQUIRE_TURSO: "1"
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
         run: python -m scrapers.health

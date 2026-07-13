@@ -140,6 +140,11 @@ def connect(path: str):
     """
     url = os.environ.get("TURSO_DATABASE_URL")
     token = os.environ.get("TURSO_AUTH_TOKEN")
+    if os.environ.get("FREEMAP_REQUIRE_TURSO") == "1" and not (url and token):
+        raise RuntimeError(
+            "Turso credentials are required but TURSO_DATABASE_URL and "
+            "TURSO_AUTH_TOKEN are not both set"
+        )
     if url and token:
         import libsql
 

@@ -1,105 +1,59 @@
-# TASK: FreeMap scheduled scrape (MeshClaw)
+# TASK: FreeMap manual scrape
 
-Unattended scrape of all enabled sources into the SQLite DB. No secrets required
-(the default geocoder is the US Census service). Run interactively first to confirm
-green, then on cron every 6–12h via `meshclaw run TASK.md`.
+Use this procedure for a local verification run or an operator-triggered Turso
+seed. Production scheduling is owned by `.github/workflows/scrape.yml`.
 
-## What to do
+## Run
 
-1. **Run the scrape** from the repo root, using the project virtualenv
-   interpreter (the scraper deps — httpx, beautifulsoup4 — live in `.venv/`,
-   not in system python):
-
-   ```bash
-   cd /Users/jaehunb/projects/freemap
-   ./.venv/bin/python -m scrapers.run
-   ```
-
-   This loads `config.toml`, opens (and initializes if needed) the DB at
-   `config.db_path`, runs every source in `config.sources_enabled` through the
-   pipeline, upserts deals (bumping `last_seen`, never duplicating within a
-   source), and writes one `scrape_runs` row per source. It prints a per-source
-   summary line: `found=<n> upserted=<n> ok|ERROR`.
-
-2. **Capture the exit code.** `0` = at least one source succeeded with no
-   exception. `1` = every source errored (total failure).
-
-## How to verify the run
-
-After the command exits, confirm `scrape_runs` recorded this run — one row per
-enabled source, newest first:
+From the repository root:
 
 ```bash
-cd /Users/jaehunb/projects/freemap
-./.venv/bin/python -c "import sqlite3, tomllib; \
-cfg = tomllib.load(open('config.toml','rb')); \
-db = cfg['meta']['db_path']; \
-c = sqlite3.connect(db); c.row_factory = sqlite3.Row; \
-rows = c.execute('SELECT source, deals_found, errors, finished_at FROM scrape_runs ORDER BY finished_at DESC LIMIT 20').fetchall(); \
-[print(r['source'], 'found='+str(r['deals_found']), 'errors='+repr(r['errors']), r['finished_at']) for r in rows]"
+./.venv/bin/python -m scrapers.run
+./.venv/bin/python -m scrapers.health
 ```
 
-Checklist:
-- [ ] There is one fresh `scrape_runs` row for **each** source listed in
-      `config.sources_enabled` (`places_brand`, `chains`, `slickdeals`, `local`,
-      `reddit`).
-- [ ] No source is missing a row (a missing row means the orchestration did not
-      reach it — investigate `run.py`).
+Without Turso variables, this writes to `db/deals.db`. For a remote seed, export
+both credentials and require the remote path:
 
-## What to report
+```bash
+export TURSO_DATABASE_URL='libsql://...'
+export TURSO_AUTH_TOKEN='...'
+export FREEMAP_REQUIRE_TURSO=1
+./.venv/bin/python -m scrapers.run
+./.venv/bin/python -m scrapers.health
+```
 
-Report the per-source summary from the run:
+Never commit or print a token.
 
-- For each source: `deals_found` and `upserted` count, and `ok`/`ERROR`.
-- **Flag** any source where `deals_found == 0` (`[0 FOUND]` in the printed
-  summary) — likely a broken selector or a changed payload; the source is
-  visible-but-empty, not silently dropped.
-- **Flag** any source whose `errors` column is non-null, with the error string.
+## Expected result
 
-## Exit policy
+The enabled source set is:
 
-- Exit **non-zero only on total failure** — i.e. when every source errored
-  (`./.venv/bin/python -m scrapers.run` already returns `1` in that case;
-  propagate it).
-- A run where some sources found 0 or errored but at least one succeeded is a
-  **success with flags** — report the flags, exit `0`.
+- `places_brand`: required; should produce the configured Seattle storefront
+  Free/BOGO rows and geocoded map pins.
+- `reddit`: optional; may produce zero rows or be rate-limited.
 
-## Notes for unattended operation
+The scrape command prints `found`, `upserted`, and `ok` or `ERROR` for each
+source. The health command must print `[ok] places_brand` with a nonzero `pins`
+count and finish with `HEALTHY`. Reddit is reported as `[opt]` and does not
+control the exit code.
 
-- **Zero secrets.** The default Census geocoder needs no API key. The User-Agent
-  for outbound requests comes from `config.toml` (`[meta].user_agent`).
-- **Polite + cached.** Geocoding is cache-first and rate-limited
-  (`[geocoder].min_interval_seconds`, `max_live_calls`); re-scrapes are nearly
-  free because locations repeat.
-- **One bad source never aborts the run** — failures are recorded to
-  `scrape_runs`, not raised.
-- **Wired-source status (as of this version) — FIVE live sources:**
-  - `places_brand` → **live** — curated free/BOGO offers fan out to physical
-    Seattle storefronts and produce geocoded map pins.
-  - `slickdeals` → **live** (DealNews, https://www.dealnews.com/) — ~50 online
-    deals/run. The real working source.
-  - `local` → **live** (My Ballard RSS, https://www.myballard.com/feed/) — ~30
-    online deals/run. The feed has no `<location>`, so these are list-view
-    deals, not geocoded map pins.
-  - `chains` → **live** (Tom Douglas Restaurants happy hours,
-    https://www.tomdouglas.com/happy-hour/) — ~5 physical deals/run, one per
-    named Seattle venue (Half Shell, Palace Kitchen, Neb, Serious Pie, ...).
-    Each carries a `raw_location`, so these are the geocoded **map pins**
-    slickdeals/local don't provide. Server-rendered (BentoBox), robots-allowed,
-    no secrets. The parser anchors on each venue's off-site "Visit" link; if the
-    page markup changes, `chains` drops to 0-found (a visible flag, not a crash).
-  - `reddit` → **live** (`https://www.reddit.com/r/Seattle/.json`) — sends a
-    browser User-Agent to clear Reddit's 403, then applies a client-side
-    deal-signal pre-filter so only free/BOGO posts reach the classifier. A live
-    IP may still be rate-limited; the scraper catches that and reports 0 found
-    (skip-and-continue), so a transient 0/error is not a regression.
-  - **Net:** a healthy run reports `places_brand`, `slickdeals`, `local`, and
-    `chains` with deals; `reddit` adds deals when not rate-limited. Investigate
-    if one of the four stable sources drops to 0 or if every source errors.
-- **Reddit precision:** the reddit source fetches the plain subreddit hot feed
-  (no server-side `q=free` filter), then applies a client-side deal-signal
-  pre-filter (`_DEAL_SIGNALS` in `sources/reddit.py`) so only free/BOGO posts
-  reach the classifier. A server-side `q=free&restrict_sr=1` query could tighten
-  this further but adds no value while the pre-filter mirrors the classifier's
-  own vocabulary.
-- Do not point this at the web layer; the scraper and API share only the DB.
+Any missing, errored, stale, zero-result, or zero-pin `places_brand` run is a
+failure.
+
+## Verify rows
+
+For local SQLite:
+
+```bash
+./.venv/bin/python -c "import sqlite3; c=sqlite3.connect('db/deals.db'); print(c.execute(\"SELECT source, COUNT(*) FROM deals GROUP BY source\").fetchall())"
+```
+
+For Turso:
+
+```bash
+turso db shell freemap \
+  "SELECT source, COUNT(*) AS deals FROM deals GROUP BY source; \
+   SELECT source, deals_found, errors, finished_at FROM scrape_runs \
+   ORDER BY id DESC LIMIT 4;"
+```

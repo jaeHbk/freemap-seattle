@@ -1,23 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+<rss version="2.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>Seattle Local Deals</title>
-    <link>https://localdeals.example/seattle</link>
+    <title>My Ballard</title>
+    <link>https://www.myballard.com</link>
+    <description>News, events, and forum for Seattle's Ballard neighborhood</description>
+    <lastBuildDate>Mon, 13 Jul 2026 16:56:44 +0000</lastBuildDate>
     <item>
-      <guid>local-2026-0001</guid>
-      <title>Free Scoop Day at Capitol Hill Creamery</title>
-      <description>One free scoop per visitor, all day. Capitol Hill.</description>
-      <link>https://localdeals.example/seattle/0001-free-scoop</link>
-      <location>Capitol Hill, Seattle, WA</location>
-      <pubDate>Mon, 15 Jun 2026 09:00:00 -0700</pubDate>
+      <title>Music, dancing, and lutefisk: A look back at Ballard Music &amp; Seafoodfest</title>
+      <link>https://www.myballard.com/2026/07/13/music-dancing-and-lutefisk-a-look-back-at-ballard-music-seafoodfest/</link>
+      <dc:creator><![CDATA[Olivia Asmann]]></dc:creator>
+      <pubDate>Mon, 13 Jul 2026 16:10:57 +0000</pubDate>
+      <guid isPermaLink="false">https://www.myballard.com/?p=342312</guid>
+      <description><![CDATA[Music, dancing, and the mouth-watering smell of alder-smoked salmon filled downtown Ballard last weekend during the annual Ballard Music & Seafoodfest. The free festival featured music, vendors, and kids activities.]]></description>
     </item>
     <item>
-      <guid>local-2026-0002</guid>
-      <title>BOGO Slice at Ballard Pizza Co</title>
-      <description>Buy one slice, get one free, 4-6pm.</description>
-      <link>https://localdeals.example/seattle/0002-bogo-slice</link>
-      <location>5440 Ballard Ave NW, Seattle, WA 98107</location>
-      <pubDate>Tue, 16 Jun 2026 12:00:00 -0700</pubDate>
+      <title>Harbor seal and newborn pup spotted swimming at Shilshole Bay Marina</title>
+      <link>https://www.myballard.com/2026/07/10/harbor-seal-and-newborn-pup-spotted-swimming-at-shilshole-bay-marina/</link>
+      <dc:creator><![CDATA[Meghan Walker]]></dc:creator>
+      <pubDate>Fri, 10 Jul 2026 20:00:38 +0000</pubDate>
+      <guid isPermaLink="false">https://www.myballard.com/?p=341510</guid>
+      <description><![CDATA[A newly born harbor seal pup was spotted swimming alongside its mother at Shilshole Bay Marina on Thursday, drawing a small crowd of onlookers.]]></description>
     </item>
   </channel>
 </rss>

@@ -2,9 +2,10 @@
 metro = "seattle"
 db_path = "db/deals.db"
 user_agent = "FreeMapSeattle/1.0 (contact: freemap@example.com)"
-# places_brand and chains produce geocoded map pins; slickdeals/local are
-# primarily list deals. Reddit is live but may be rate-limited by source IP.
-sources_enabled = ["places_brand", "chains", "slickdeals", "local", "reddit"]
+# places_brand supplies the verified physical Free/BOGO pins. Reddit is scoped
+# to Free/BOGO posts but may be rate-limited by source IP. The broader
+# chains/slickdeals/local parsers remain available but are disabled in production.
+sources_enabled = ["places_brand", "reddit"]
 
 [freshness]
 stale_after_hours = 24
@@ -15,8 +16,9 @@ stale_after_hours = 24
 # do not fail the workflow; Reddit belongs there because a live IP may be
 # rate-limited even though its browser-UA fetch path is functional.
 [health]
-expected = ["places_brand", "chains", "slickdeals", "local"]
+expected = ["places_brand"]
 optional = ["reddit"]
+minimum_pins = { places_brand = 1 }
 
 [geocoder]
 # provider: "census" (keyless US Census geocoder, the default — works unattended)
@@ -69,35 +71,37 @@ feed_urls = ["https://www.myballard.com/feed/"]
 provider = "config"
 metro_query = "Seattle, WA"
 
+# Verified 2026-07-13 against Chipotle's official Rewards page (updated
+# 2026-05-20) and official Seattle location directory (updated 2026-07-06).
 [[sources.places_brand.brands]]
-id = "starbucks-bogo"
-name = "Starbucks"
-offer = "Buy one handcrafted drink, get one free (BOGO), 12-6pm"
-url = "https://www.starbucks.com/rewards"
-locations = [
-  "102 Pike St, Seattle, WA 98101",
-  "1912 Pike Pl, Seattle, WA 98101",
-  "400 Occidental Ave S, Seattle, WA 98104",
-  "505 5th Ave S, Seattle, WA 98104",
-]
-
-[[sources.places_brand.brands]]
-id = "chipotle-freeguac"
+id = "chipotle-rewards-free-chips-guac"
 name = "Chipotle"
-offer = "Free guacamole with any entree purchase"
-url = "https://www.chipotle.com/"
+offer = "Free chips and guacamole with a $5+ meal purchase for new Chipotle Rewards members"
+url = "https://www.chipotle.com/rewards"
 locations = [
-  "1501 Pike Pl, Seattle, WA 98101",
-  "1318 Madison St, Seattle, WA 98104",
+  "1415 Broadway, Seattle, WA 98122",
+  "401 NE Northgate Way, Seattle, WA 98125",
+  "12725 Lake City Way NE, Seattle, WA 98125",
+  "2626 NE 46th St, Seattle, WA 98105",
   "4229 University Way NE, Seattle, WA 98105",
+  "1501 4th Ave, Seattle, WA 98101",
+  "212 Westlake Ave N, Seattle, WA 98109",
+  "4730 California Ave SW, Seattle, WA 98116",
+  "1827 15th Ave W, Seattle, WA 98119",
+  "2212 N 45th St, Seattle, WA 98103",
 ]
 
+# Verified 2026-07-13 against MOD's official promotion terms (updated
+# 2026-06-15) and official Seattle location directory.
 [[sources.places_brand.brands]]
-id = "moes-bogo-burrito"
+id = "mod-kids-eat-free-sundays"
 name = "MOD Pizza"
-offer = "Buy one pizza get one free for rewards members (BOGO)"
-url = "https://modpizza.com/"
+offer = "Sundays: buy one MOD-size pizza or salad and get one kids meal free (ages 12 and under)"
+url = "https://modpizza.com/rewards-and-promo-terms/"
 locations = [
-  "510 Westlake Ave N, Seattle, WA 98109",
-  "2640 NE University Village St, Seattle, WA 98105",
+  "1302 6th Ave, Seattle, WA 98101",
+  "1414 NE 42nd St Ste 103-B, Seattle, WA 98105",
+  "2800 SW Barton St, Seattle, WA 98126",
+  "305 Harrison St Armory Building Ste 221, Seattle, WA 98109",
+  "6010 15th Ave NW, Seattle, WA 98107",
 ]

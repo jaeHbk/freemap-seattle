@@ -12,7 +12,7 @@ export interface Deal {
   id: number | string;
   source: string;
   source_id: string;
-  dedup_key: string;
+  dedup_key: string | null;
   title: string;
   url: string;
   description: string | null;

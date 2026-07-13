@@ -1,8 +1,8 @@
-"""Orchestrate all sources through the pipeline and record scrape_runs.
+"""Orchestrate enabled sources through the pipeline and record scrape_runs.
 
-Single unattended entrypoint (`python -m scrapers.run`) with zero secrets —
-suitable for `meshclaw run TASK.md` on cron. One source failing never aborts
-the others; every source's outcome is recorded in scrape_runs.
+Single entrypoint for local SQLite runs and scheduled Turso runs. One source
+failing never aborts the others; every source's outcome is recorded in
+scrape_runs.
 """
 from __future__ import annotations
 
@@ -18,10 +18,8 @@ from scrapers.geocoders import make_geocoder
 from scrapers.pipeline import run_pipeline
 from scrapers.sources import reddit, chains, slickdeals, local, places_brand
 
-# Module-level registry: source name -> fetch callable.
-# Milestone 3 wires only reddit; Milestone 5 adds chains/slickdeals/local;
-# Milestone 6 adds the main() CLI entrypoint (which imports connect/init_db/
-# load_config/Geocoder). Keep this registry the single source of truth.
+# Module-level registry: source name -> fetch callable. Keep this registry the
+# single source of truth even when only a scoped subset is enabled in production.
 SOURCES: dict[str, Callable[..., list[RawDeal]]] = {
     "reddit": reddit.fetch,
     "chains": chains.fetch,
@@ -82,7 +80,7 @@ def run_all(
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="scrapers.run",
-        description="FreeMap scrape entrypoint: run all enabled sources through the pipeline into SQLite.",
+        description="Run all enabled FreeMap sources through the pipeline.",
     )
     parser.add_argument(
         "--db",
@@ -108,8 +106,8 @@ def main(argv=None) -> int:
     init_db(conn)
 
     try:
-        # Geocoder provider is config-driven (keyless Nominatim by default; "google"
-        # uses GOOGLE_MAPS_API_KEY when set, else degrades to Nominatim).
+        # Geocoder provider is config-driven (keyless Census by default; Google
+        # uses GOOGLE_MAPS_API_KEY when explicitly selected).
         geocoder = make_geocoder(config.geocoder_provider, conn, config)
 
         now = datetime.now()

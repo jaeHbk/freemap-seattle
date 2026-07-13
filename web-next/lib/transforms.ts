@@ -4,15 +4,6 @@
 
 import type { Deal } from "./db";
 
-// --- Filter state shape (mirrors web/map.js filterState / buildQuery input) ---
-export type FilterState = {
-  type?: string;
-  category?: string;
-  placement?: string;
-  bbox?: string;
-  includeStale?: boolean;
-};
-
 export type Bbox = [minLng: number, minLat: number, maxLng: number, maxLat: number];
 
 // --- Time helpers -----------------------------------------------------------
@@ -123,61 +114,4 @@ export function collapseDedup(deals: Deal[]): Deal[] {
     }
   }
   return result;
-}
-
-// --- JS helpers ported from web/filters.js, list.js, map.js -----------------
-
-// buildQuery(state) -> querystring (no leading "?"). Only truthy filter fields.
-// 1:1 with web/filters.js buildQuery (encodeURIComponent semantics preserved).
-export function buildQuery(state: FilterState = {}): string {
-  const params: string[] = [];
-  if (state.type) params.push("type=" + encodeURIComponent(state.type));
-  if (state.category) params.push("category=" + encodeURIComponent(state.category));
-  if (state.placement) params.push("placement=" + encodeURIComponent(state.placement));
-  if (state.bbox) params.push("bbox=" + encodeURIComponent(state.bbox));
-  if (state.includeStale) params.push("include_stale=true");
-  return params.join("&");
-}
-
-// matchesFilters(deal, state): client guard mirroring server filters. Expired
-// never matches; stale gated by includeStale; equality on type/category/placement.
-export function matchesFilters(
-  deal: Pick<Deal, "status" | "deal_type" | "category" | "placement">,
-  state: FilterState = {},
-): boolean {
-  if (deal.status === "expired") return false;
-  if (deal.status === "stale" && !state.includeStale) return false;
-  if (state.type && deal.deal_type !== state.type) return false;
-  if (state.category && deal.category !== state.category) return false;
-  if (state.placement && deal.placement !== state.placement) return false;
-  return true;
-}
-
-// belongsInList(deal): online OR failed-geocode physical (never lost from list).
-export function belongsInList(deal: Pick<Deal, "placement" | "geocode_status">): boolean {
-  return deal.placement === "online" || deal.geocode_status === "failed";
-}
-
-// A Leaflet LatLngBounds-like object: contains([lat, lng]) -> bool.
-export type Bounds = { contains(latlng: [number, number]): boolean };
-
-// inViewport(deal, bounds): true if deal has real coords inside bounds. Null
-// coords always false. 1:1 with web/map.js inViewport.
-export function inViewport(deal: Pick<Deal, "lat" | "lng">, bounds: Bounds): boolean {
-  if (deal.lat === null || deal.lng === null) return false;
-  return bounds.contains([deal.lat, deal.lng]);
-}
-
-// dealsForMap(deals, bounds, state): geocoded physical deals inside the viewport
-// that pass the active filters. 1:1 with web/map.js dealsForMap.
-export function dealsForMap<T extends Deal>(deals: T[], bounds: Bounds, state: FilterState = {}): T[] {
-  return deals.filter(
-    (d) => d.placement === "physical" && inViewport(d, bounds) && matchesFilters(d, state),
-  );
-}
-
-// dealsForList(deals, state): online + failed-geocode physical that pass filters.
-// NOT geographically scoped. 1:1 with web/map.js dealsForList.
-export function dealsForList<T extends Deal>(deals: T[], state: FilterState = {}): T[] {
-  return deals.filter((d) => belongsInList(d) && matchesFilters(d, state));
 }

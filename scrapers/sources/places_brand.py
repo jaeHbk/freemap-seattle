@@ -15,14 +15,14 @@ Config shape (config.toml):
     metro_query = "Seattle, WA"  # bias for Places text search
 
     [[sources.places_brand.brands]]
-    id = "chipotle"
+    id = "chipotle-rewards"
     name = "Chipotle"
-    offer = "Free guac with any entree (BOGO burrito on the app)"
-    url = "https://www.chipotle.com/free-guac"
+    offer = "Free chips and guacamole with a meal purchase for new Rewards members"
+    url = "https://www.chipotle.com/rewards"
     # provider="config": curated real storefront addresses ->
     locations = [
-      "1501 Pike Pl, Seattle, WA 98101",
-      "1314 Madison St, Seattle, WA 98104",
+      "1501 4th Ave, Seattle, WA 98101",
+      "4229 University Way NE, Seattle, WA 98105",
     ]
     # provider="google": omit `locations`; storefronts are discovered via Places.
 

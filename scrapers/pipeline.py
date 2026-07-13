@@ -2,6 +2,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from scrapers.contract import RawDeal, Deal
+from scrapers.deal_scope import classify_deal_type
 from scrapers.db import upsert_deals
 
 
@@ -34,23 +35,7 @@ def classify(raw: RawDeal) -> Deal:
     """
     text = " ".join(p for p in (raw.title, raw.description) if p).lower()
 
-    # NOTE: keyword matching below is intentionally plain substring (`in`) for
-    # simplicity. This accepts known false positives (e.g. "Freedom rally" -> "free",
-    # "shows" matches "show") as an acceptable tradeoff at this scale; a future
-    # reader wanting word-boundary precision would switch to regex \bword\b here.
-
-    # deal_type: BOGO beats "free"; then discount-ish -> other; else other.
-    if any(k in text for k in ("buy one", "bogo", "b1g1")):
-        deal_type = "bogo"
-    elif "free" in text:
-        deal_type = "free"
-    elif any(k in text for k in ("% off", "discount", "sale")):
-        # Discount-ish keywords are intentionally recognized but bucketed as
-        # "other" (we only surface free/BOGO as distinct types). Same result as
-        # the else branch; kept explicit so the recognized-vocabulary is documented.
-        deal_type = "other"
-    else:
-        deal_type = "other"
+    deal_type = classify_deal_type(raw.title, raw.description)
 
     placement = "physical" if raw.raw_location else "online"
 

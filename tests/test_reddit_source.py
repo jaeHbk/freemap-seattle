@@ -224,6 +224,16 @@ def test_fetch_filters_non_deal_posts(monkeypatch):
                         "created_utc": 1718668800,
                     },
                 },
+                {
+                    "kind": "t3",
+                    "data": {
+                        "id": "drop_freeze",
+                        "title": "Deep freeze expected around Puget Sound",
+                        "url": "https://www.example.com/drop_freeze",
+                        "selftext": "Weather discussion only.",
+                        "created_utc": 1718668800,
+                    },
+                },
             ]
         },
     }
