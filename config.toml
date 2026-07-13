@@ -15,6 +15,8 @@ stale_after_hours = 24
 # found 0 deals, or the check exits non-zero. `optional` sources are reported but
 # do not fail the workflow; Reddit belongs there because a live IP may be
 # rate-limited even though its browser-UA fetch path is functional.
+# `minimum_pins` additionally requires that many freshly geocoded map pins from a
+# source this cycle, so a geocoder outage cannot report a healthy empty map.
 [health]
 expected = ["places_brand"]
 optional = ["reddit"]
