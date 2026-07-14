@@ -90,7 +90,7 @@ test("map and list partition the active app payload", () => {
   const all = [seattlePin, offscreenPin, online, failedGeo];
   const filters = { type: "", category: "", placement: "", includeStale: false } as const;
 
-  // The app fetches its small map payload once. Leaflet clusters and culls
+  // The app fetches its small map payload once. MapLibre clusters and culls
   // offscreen markers, while /api/deals?bbox= remains available for bounded clients.
   assert.deepEqual(dealsForMap(all, filters), [seattlePin, offscreenPin]);
   assert.deepEqual(dealsForList(all, filters), [online, failedGeo]);

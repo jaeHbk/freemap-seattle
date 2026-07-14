@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { Loader2, MapPinOff } from "lucide-react";
+import { Loader2, MapPinOff, TriangleAlert } from "lucide-react";
 import type { Deal } from "@/components/deals";
 import { TYPE_STYLE } from "@/components/deal-style";
 
-// Leaflet needs `window`, so the map is loaded client-only (no SSR).
+// MapLibre needs `window` and WebGL, so the map is loaded client-only.
 const DealMapInner = dynamic(() => import("@/components/DealMap.inner"), {
   ssr: false,
   loading: () => (
@@ -31,10 +31,42 @@ interface DealMapProps {
 }
 
 export function DealMap({ deals, onClearFilters }: DealMapProps) {
+  const [initializationError, setInitializationError] = React.useState<
+    string | null
+  >(null);
+
+  const handleInitializationError = React.useCallback((message: string) => {
+    setInitializationError(message);
+  }, []);
+
   return (
     <div className="relative size-full overflow-hidden rounded-2xl border border-border shadow-sm">
-      <DealMapInner deals={deals} />
-      {deals.length === 0 && (
+      {initializationError ? (
+        <div
+          role="alert"
+          className="flex size-full flex-col items-center justify-center gap-3 bg-[var(--map-bg)] px-6 text-center"
+        >
+          <span className="flex size-12 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm">
+            <TriangleAlert className="size-6" aria-hidden />
+          </span>
+          <div>
+            <p className="font-heading text-lg font-semibold text-foreground">
+              Map unavailable
+            </p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+              This browser could not start the interactive map. Use the List
+              view to browse deals.
+            </p>
+          </div>
+          <span className="sr-only">{initializationError}</span>
+        </div>
+      ) : (
+        <DealMapInner
+          deals={deals}
+          onInitializationError={handleInitializationError}
+        />
+      )}
+      {!initializationError && deals.length === 0 && (
         <div
           role="status"
           className="absolute left-1/2 top-4 z-[500] flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur-sm"
@@ -59,22 +91,24 @@ export function DealMap({ deals, onClearFilters }: DealMapProps) {
           )}
         </div>
       )}
-      <div
-        className="pointer-events-none absolute bottom-4 left-4 z-[500] rounded-xl border border-border/80 bg-card/90 px-3 py-2.5 text-xs shadow-lg backdrop-blur-sm"
-        aria-hidden
-      >
-        <p className="mb-1.5 font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Deal type
-        </p>
-        <ul className="flex flex-col gap-1">
-          {(["free", "bogo", "other"] as const).map((t) => (
-            <li key={t} className="flex items-center gap-2 font-medium text-foreground">
-              <LegendGlyph shape={TYPE_STYLE[t].shape} color={TYPE_STYLE[t].color} />
-              {TYPE_STYLE[t].label}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {!initializationError && (
+        <div
+          className="pointer-events-none absolute bottom-4 left-4 z-[500] rounded-xl border border-border/80 bg-card/90 px-3 py-2.5 text-xs shadow-lg backdrop-blur-sm"
+          aria-hidden
+        >
+          <p className="mb-1.5 font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            Deal type
+          </p>
+          <ul className="flex flex-col gap-1">
+            {(["free", "bogo", "other"] as const).map((t) => (
+              <li key={t} className="flex items-center gap-2 font-medium text-foreground">
+                <LegendGlyph shape={TYPE_STYLE[t].shape} color={TYPE_STYLE[t].color} />
+                {TYPE_STYLE[t].label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

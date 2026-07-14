@@ -14,6 +14,9 @@ npm run dev
 Open <http://localhost:3000>. Without Turso variables, local development reads
 `../db/deals.db`.
 
+The interactive map uses MapLibre GL with keyless OpenFreeMap vector tiles.
+There is no map API key or billing account to configure.
+
 ## Validation
 
 ```bash

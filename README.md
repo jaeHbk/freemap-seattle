@@ -72,7 +72,7 @@ The read API is available under the Next.js app:
 - `GET /api/meta`
 
 `bbox` uses `minLng,minLat,maxLng,maxLat` and is pushed into SQL. The current UI
-loads the small map payload once and lets Leaflet MarkerCluster cull offscreen
+loads the small map payload once and lets MapLibre cluster and cull offscreen
 markers, avoiding a request on every pan. Bounded API clients can use `bbox`.
 
 Freshness is computed at read time:
