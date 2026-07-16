@@ -95,7 +95,7 @@ export function hasCoords(deal: Deal): deal is Deal & { lat: number; lng: number
 }
 
 // dealsForMap(deals, state) -> geocoded physical deals that pass active filters.
-// Viewport scoping is left to leaflet's clusterer (it culls offscreen markers),
+// Viewport scoping is left to MapLibre's clusterer (it culls offscreen markers),
 // which keeps this pure and avoids a refetch on every pan. Ported from web/map.js
 // (the inViewport step is now handled by the map itself).
 export function dealsForMap(deals: Deal[], state: FilterState): Deal[] {

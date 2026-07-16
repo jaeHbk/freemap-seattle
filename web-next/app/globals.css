@@ -143,35 +143,107 @@
   }
 }
 
-/* --- Leaflet integration ------------------------------------------------- */
-/* Tile container should not show the default white while tiles load. */
-.leaflet-container {
+/* --- MapLibre integration ------------------------------------------------ */
+.maplibregl-map {
   background: var(--map-bg);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
-.leaflet-div-icon.fm-pin {
-  background: transparent;
+
+.maplibregl-canvas:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -3px;
+}
+
+.fm-map-target {
+  display: block;
+  padding: 0;
   border: 0;
+  background: transparent;
+  cursor: pointer;
 }
-.fm-pin svg {
-  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.25));
+
+.fm-map-target-pin {
+  width: 34px;
+  height: 42px;
+  border-radius: 8px;
+  pointer-events: none;
 }
-/* Popup chrome themed to the app surface. */
-.leaflet-popup-content-wrapper {
-  border-radius: 14px;
+
+.fm-map-target-pin:focus {
+  pointer-events: auto;
+}
+
+.fm-map-target:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.14);
+}
+
+.maplibregl-ctrl-group button {
+  background-color: var(--card);
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top-color: var(--border);
+}
+
+.maplibregl-ctrl-group button:hover {
+  background-color: var(--accent);
+}
+
+.maplibregl-ctrl-icon {
+  filter: opacity(0.72);
+}
+
+.maplibregl-popup-content {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--popover);
   color: var(--popover-foreground);
   box-shadow: 0 12px 28px rgb(0 0 0 / 0.18);
-  border: 1px solid var(--border);
 }
-.leaflet-popup-tip {
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--popover);
+}
+
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--popover);
+}
+
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--popover);
+}
+
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--popover);
+}
+
+.maplibregl-popup-close-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
   background: var(--popover);
-  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 20px;
+  line-height: 24px;
 }
-.leaflet-popup-content {
-  margin: 12px 14px;
+
+.maplibregl-popup-close-button:hover {
+  background: var(--accent);
+  color: var(--foreground);
 }
+
 .fm-popup-title {
+  padding-right: 16px;
   display: block;
   font-family: var(--font-heading), Georgia, serif;
   font-size: 1rem;
@@ -200,20 +272,20 @@
 .fm-popup-link:hover {
   text-decoration: underline;
 }
-/* Cluster bubble tinted to the evergreen brand. */
-.marker-cluster {
-  background: oklch(0.5 0.11 158 / 0.25);
+
+.maplibregl-ctrl-attrib {
+  color: var(--muted-foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
-.marker-cluster div {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  font-family: var(--font-sans), sans-serif;
-  font-weight: 600;
+
+.maplibregl-ctrl-attrib a {
+  color: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .leaflet-fade-anim .leaflet-tile,
-  .leaflet-zoom-anim .leaflet-zoom-animated {
+  .maplibregl-popup,
+  .maplibregl-user-location-dot::before {
     transition: none !important;
+    animation: none !important;
   }
 }

@@ -1,44 +1,93 @@
-"use client";
-
 import * as React from "react";
-import { MapContainer, TileLayer, useMap } from "react-leaflet";
-import L from "leaflet";
-import "leaflet.markercluster";
-import "leaflet/dist/leaflet.css";
-import "leaflet.markercluster/dist/MarkerCluster.css";
-import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import maplibregl, {
+  type GeoJSONSource,
+  type MapLayerMouseEvent,
+} from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 
+import {
+  dealsToFeatureCollection,
+  OPENFREEMAP_STYLE_URL,
+} from "@/components/deal-map-data";
+import { TYPE_STYLE, STATUS_LABEL } from "@/components/deal-style";
 import { safeHttpUrl, SEATTLE, SEATTLE_ZOOM } from "@/components/deals";
 import type { Deal } from "@/components/deals";
-import { TYPE_STYLE, STATUS_LABEL } from "@/components/deal-style";
 
-// SVG path per shape so color is NOT the only signal (a11y). The marker is a
-// pin-style teardrop with the shape glyph inset.
-function pinSvg(deal: Deal): string {
-  const ts = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
-  const stale = deal.status === "stale";
-  const opacity = stale ? 0.5 : 1;
-  let glyph: string;
-  if (ts.shape === "square") {
-    glyph = `<rect x="9" y="6.5" width="8" height="8" rx="1.5" fill="#fff"/>`;
-  } else if (ts.shape === "diamond") {
-    glyph = `<rect x="9" y="6.5" width="8" height="8" rx="1" fill="#fff" transform="rotate(45 13 10.5)"/>`;
+const DEAL_SOURCE_ID = "freemap-deals";
+const CLUSTER_LAYER_ID = "freemap-deal-clusters";
+const CLUSTER_COUNT_LAYER_ID = "freemap-deal-cluster-counts";
+const PIN_LAYER_ID = "freemap-deal-pins";
+
+const PIN_IMAGE_IDS = {
+  free: "freemap-pin-free",
+  bogo: "freemap-pin-bogo",
+  other: "freemap-pin-other",
+} as const;
+
+function createPinImage(
+  color: string,
+  shape: "circle" | "square" | "diamond",
+): ImageData {
+  const pixelRatio = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = 26 * pixelRatio;
+  canvas.height = 34 * pixelRatio;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas 2D rendering is unavailable.");
+
+  context.scale(pixelRatio, pixelRatio);
+  context.beginPath();
+  context.moveTo(13, 0.75);
+  context.bezierCurveTo(5.9, 0.75, 0.75, 6.2, 0.75, 12.8);
+  context.bezierCurveTo(0.75, 21.4, 13, 33, 13, 33);
+  context.bezierCurveTo(13, 33, 25.25, 21.4, 25.25, 12.8);
+  context.bezierCurveTo(25.25, 6.2, 20.1, 0.75, 13, 0.75);
+  context.closePath();
+  context.shadowColor = "rgb(0 0 0 / 0.3)";
+  context.shadowBlur = 3;
+  context.shadowOffsetY = 2;
+  context.fillStyle = color;
+  context.fill();
+  context.shadowColor = "transparent";
+  context.lineWidth = 1.5;
+  context.strokeStyle = "#ffffff";
+  context.stroke();
+
+  context.fillStyle = "#ffffff";
+  if (shape === "square") {
+    context.beginPath();
+    context.roundRect(9, 6.5, 8, 8, 1.5);
+    context.fill();
+  } else if (shape === "diamond") {
+    context.save();
+    context.translate(13, 10.5);
+    context.rotate(Math.PI / 4);
+    context.beginPath();
+    context.roundRect(-4, -4, 8, 8, 1);
+    context.fill();
+    context.restore();
   } else {
-    glyph = `<circle cx="13" cy="10.5" r="4.2" fill="#fff"/>`;
+    context.beginPath();
+    context.arc(13, 10.5, 4.2, 0, Math.PI * 2);
+    context.fill();
   }
-  // Static template; deal_type/status are server-enumerated enums, nothing
-  // untrusted is interpolated here.
-  return `<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg" style="opacity:${opacity}">
-    <path d="M13 0C5.8 0 0 5.7 0 12.8 0 22 13 34 13 34s13-12 13-21.2C26 5.7 20.2 0 13 0z" fill="${ts.color}" stroke="#fff" stroke-width="1.5"/>
-    ${glyph}
-  </svg>`;
+
+  return context.getImageData(0, 0, canvas.width, canvas.height);
 }
 
-// Build the popup as DOM via textContent so scraped title/url/location can never
-// inject markup — the XSS-safe approach ported from web/map.js (React escaping
-// does not apply to imperative leaflet popups, so we build nodes by hand).
+function addPinImages(map: maplibregl.Map) {
+  for (const [dealType, imageId] of Object.entries(PIN_IMAGE_IDS)) {
+    if (map.hasImage(imageId)) continue;
+    const style = TYPE_STYLE[dealType as keyof typeof TYPE_STYLE];
+    map.addImage(imageId, createPinImage(style.color, style.shape), {
+      pixelRatio: 2,
+    });
+  }
+}
+
+// Build popup DOM with textContent so scraped fields can never inject markup.
 function popupFor(deal: Deal): HTMLElement {
-  const ts = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
+  const typeStyle = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
   const root = document.createElement("div");
   root.className = "fm-popup";
 
@@ -49,14 +98,14 @@ function popupFor(deal: Deal): HTMLElement {
 
   const meta = document.createElement("div");
   meta.className = "fm-popup-meta";
-  meta.textContent = `${ts.label} · ${deal.category} · ${STATUS_LABEL[deal.status]}`;
+  meta.textContent = `${typeStyle.label} · ${deal.category} · ${STATUS_LABEL[deal.status]}`;
   root.appendChild(meta);
 
   if (deal.raw_location) {
-    const loc = document.createElement("div");
-    loc.className = "fm-popup-loc";
-    loc.textContent = deal.raw_location;
-    root.appendChild(loc);
+    const location = document.createElement("div");
+    location.className = "fm-popup-loc";
+    location.textContent = deal.raw_location;
+    root.appendChild(location);
   }
 
   const safeUrl = safeHttpUrl(deal.url);
@@ -66,75 +115,381 @@ function popupFor(deal: Deal): HTMLElement {
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.className = "fm-popup-link";
-    link.textContent = "View deal →";
+    link.textContent = "View deal";
     root.appendChild(link);
   } else {
-    const plain = document.createElement("span");
-    plain.className = "fm-popup-loc";
-    plain.textContent = "View deal (link unavailable)";
-    root.appendChild(plain);
+    const unavailable = document.createElement("span");
+    unavailable.className = "fm-popup-loc";
+    unavailable.textContent = "Deal link unavailable";
+    root.appendChild(unavailable);
   }
 
   return root;
 }
 
-function ClusterLayer({ deals }: { deals: Deal[] }) {
-  const map = useMap();
-  const groupRef = React.useRef<L.MarkerClusterGroup | null>(null);
+function addDealLayers(map: maplibregl.Map, deals: Deal[]) {
+  addPinImages(map);
+  map.addSource(DEAL_SOURCE_ID, {
+    type: "geojson",
+    data: dealsToFeatureCollection(deals),
+    cluster: true,
+    clusterMaxZoom: 14,
+    clusterRadius: 50,
+  });
 
-  React.useEffect(() => {
-    // L.markerClusterGroup is added by the markercluster plugin import.
-    const group = (L as unknown as { markerClusterGroup: (o?: object) => L.MarkerClusterGroup })
-      .markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50 });
-    groupRef.current = group;
-    map.addLayer(group);
-    return () => {
-      map.removeLayer(group);
-      groupRef.current = null;
-    };
-  }, [map]);
+  map.addLayer({
+    id: CLUSTER_LAYER_ID,
+    type: "circle",
+    source: DEAL_SOURCE_ID,
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": [
+        "step",
+        ["get", "point_count"],
+        "#1f7a4d",
+        10,
+        "#0e7490",
+        25,
+        "#b45309",
+      ],
+      "circle-radius": [
+        "step",
+        ["get", "point_count"],
+        20,
+        10,
+        24,
+        25,
+        29,
+      ],
+      "circle-stroke-color": "#ffffff",
+      "circle-stroke-width": 3,
+      "circle-opacity": 0.94,
+    },
+  });
 
-  React.useEffect(() => {
-    const group = groupRef.current;
-    if (!group) return;
-    group.clearLayers();
-    for (const deal of deals) {
-      if (deal.lat == null || deal.lng == null) continue;
-      const icon = L.divIcon({
-        className: "fm-pin",
-        html: pinSvg(deal),
-        iconSize: [26, 34],
-        iconAnchor: [13, 34],
-        popupAnchor: [0, -30],
-      });
-      const marker = L.marker([deal.lat, deal.lng], {
-        icon,
-        title: deal.title,
-        alt: `${TYPE_STYLE[deal.deal_type]?.label ?? "Deal"}: ${deal.title}`,
-      });
-      marker.bindPopup(popupFor(deal), { closeButton: true, maxWidth: 280 });
-      group.addLayer(marker);
-    }
-  }, [deals]);
+  map.addLayer({
+    id: CLUSTER_COUNT_LAYER_ID,
+    type: "symbol",
+    source: DEAL_SOURCE_ID,
+    filter: ["has", "point_count"],
+    layout: {
+      "text-field": ["get", "point_count_abbreviated"],
+      "text-font": ["Noto Sans Bold"],
+      "text-size": 13,
+      "text-allow-overlap": true,
+    },
+    paint: {
+      "text-color": "#ffffff",
+      "text-halo-color": "rgb(0 0 0 / 0.18)",
+      "text-halo-width": 1,
+    },
+  });
 
-  return null;
+  map.addLayer({
+    id: PIN_LAYER_ID,
+    type: "symbol",
+    source: DEAL_SOURCE_ID,
+    filter: ["!", ["has", "point_count"]],
+    layout: {
+      "icon-image": [
+        "match",
+        ["get", "dealType"],
+        "free",
+        PIN_IMAGE_IDS.free,
+        "bogo",
+        PIN_IMAGE_IDS.bogo,
+        PIN_IMAGE_IDS.other,
+      ],
+      "icon-anchor": "bottom",
+      "icon-allow-overlap": true,
+      "icon-ignore-placement": true,
+    },
+    paint: {
+      "icon-opacity": [
+        "case",
+        ["==", ["get", "status"], "stale"],
+        0.5,
+        1,
+      ],
+    },
+  });
 }
 
-export default function DealMapInner({ deals }: { deals: Deal[] }) {
+type PointFeatureLike = {
+  geometry: { type: string; coordinates?: unknown };
+};
+
+function pointCoordinates(
+  feature: PointFeatureLike | undefined,
+): [number, number] | null {
+  const geometry = feature?.geometry;
+  if (!geometry || geometry.type !== "Point") return null;
+  const coordinates = geometry.coordinates as number[] | undefined;
+  if (
+    !coordinates ||
+    !Number.isFinite(coordinates[0]) ||
+    !Number.isFinite(coordinates[1])
+  ) {
+    return null;
+  }
+  return [coordinates[0], coordinates[1]];
+}
+
+interface DealMapInnerProps {
+  deals: Deal[];
+  onInitializationError?: (message: string) => void;
+}
+
+export default function DealMapInner({
+  deals,
+  onInitializationError,
+}: DealMapInnerProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const mapRef = React.useRef<maplibregl.Map | null>(null);
+  const popupRef = React.useRef<maplibregl.Popup | null>(null);
+  const dealsRef = React.useRef(deals);
+  const dealsByIdRef = React.useRef(
+    new Map(deals.map((deal) => [String(deal.id), deal])),
+  );
+  const syncDealTargetsRef = React.useRef<() => void>(() => {});
+
+  React.useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    let mapSettled = false;
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: OPENFREEMAP_STYLE_URL,
+        center: [SEATTLE[1], SEATTLE[0]],
+        zoom: SEATTLE_ZOOM,
+        minZoom: 8,
+        maxZoom: 19,
+        pitchWithRotate: false,
+        dragRotate: false,
+        touchPitch: false,
+        attributionControl: false,
+        canvasContextAttributes: { antialias: true },
+      });
+    } catch (error) {
+      onInitializationError?.(
+        error instanceof Error ? error.message : "The map could not start.",
+      );
+      return;
+    }
+    mapRef.current = map;
+    map.touchZoomRotate.disableRotation();
+    map.keyboard.disableRotation();
+
+    map.addControl(
+      new maplibregl.NavigationControl({
+        showCompass: false,
+        showZoom: true,
+      }),
+      "top-right",
+    );
+    map.addControl(
+      new maplibregl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        fitBoundsOptions: { maxZoom: 14, animate: !reducedMotion },
+        trackUserLocation: false,
+        showAccuracyCircle: true,
+        showUserLocation: true,
+      }),
+      "top-right",
+    );
+    map.addControl(
+      new maplibregl.AttributionControl({
+        compact: true,
+      }),
+      "bottom-right",
+    );
+
+    const dealTargets = new Map<
+      string,
+      { marker: maplibregl.Marker; element: HTMLButtonElement }
+    >();
+
+    const expandClusterAt = (
+      clusterId: number,
+      coordinates: [number, number],
+    ) => {
+      const source = map.getSource(DEAL_SOURCE_ID) as
+        | GeoJSONSource
+        | undefined;
+      if (!source || !Number.isFinite(clusterId)) return;
+
+      void source
+        .getClusterExpansionZoom(clusterId)
+        .then((zoom) => {
+          map.easeTo({
+            center: coordinates,
+            zoom,
+            duration: reducedMotion ? 0 : 500,
+          });
+        })
+        .catch(() => {});
+    };
+
+    const openDealAt = (deal: Deal, coordinates: [number, number]) => {
+      popupRef.current?.remove();
+      popupRef.current = new maplibregl.Popup({
+        closeButton: true,
+        closeOnClick: true,
+        focusAfterOpen: true,
+        maxWidth: "300px",
+        offset: 26,
+      })
+        .setLngLat(coordinates)
+        .setDOMContent(popupFor(deal))
+        .addTo(map);
+    };
+
+    const expandCluster = (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      const coordinates = pointCoordinates(feature);
+      const clusterId = Number(feature?.properties?.cluster_id);
+      if (!coordinates) return;
+      expandClusterAt(clusterId, coordinates);
+    };
+
+    const openDeal = (event: MapLayerMouseEvent) => {
+      const feature = event.features?.[0];
+      const coordinates = pointCoordinates(feature);
+      const dealId = String(feature?.properties?.dealId ?? "");
+      const deal = dealsByIdRef.current.get(dealId);
+      if (!deal || !coordinates) return;
+      openDealAt(deal, coordinates);
+    };
+
+    const syncDealTargets = () => {
+      const bounds = map.getBounds();
+      const visibleDealIds = new Set<string>();
+      for (const deal of dealsRef.current) {
+        if (
+          deal.lat == null ||
+          deal.lng == null ||
+          !bounds.contains([deal.lng, deal.lat])
+        ) {
+          continue;
+        }
+        const dealId = String(deal.id);
+        const coordinates: [number, number] = [deal.lng, deal.lat];
+        visibleDealIds.add(dealId);
+
+        const label = `${TYPE_STYLE[deal.deal_type]?.label ?? "Deal"}: ${deal.title}, ${STATUS_LABEL[deal.status]}`;
+        const existing = dealTargets.get(dealId);
+        if (existing) {
+          existing.element.setAttribute("aria-label", label);
+          existing.element.title = deal.title;
+          existing.marker.setLngLat(coordinates);
+          continue;
+        }
+
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = "fm-map-target fm-map-target-pin";
+        element.dataset.mapDealTarget = dealId;
+        element.setAttribute("aria-label", label);
+        element.title = deal.title;
+        const marker = new maplibregl.Marker({
+          element,
+          anchor: "bottom",
+        })
+          .setLngLat(coordinates)
+          .addTo(map);
+        element.addEventListener("click", (domEvent) => {
+          domEvent.stopPropagation();
+          const currentDeal = dealsByIdRef.current.get(dealId);
+          if (currentDeal?.lat == null || currentDeal.lng == null) return;
+          openDealAt(currentDeal, [currentDeal.lng, currentDeal.lat]);
+        });
+        dealTargets.set(dealId, { marker, element });
+      }
+
+      for (const [dealId, target] of dealTargets) {
+        if (visibleDealIds.has(dealId)) continue;
+        target.marker.remove();
+        dealTargets.delete(dealId);
+      }
+    };
+    syncDealTargetsRef.current = syncDealTargets;
+
+    map.once("load", () => {
+      if (mapRef.current !== map) return;
+      mapSettled = true;
+      addDealLayers(map, dealsRef.current);
+      const canvas = map.getCanvas();
+      canvas.setAttribute(
+        "aria-label",
+        `Interactive map showing ${dealsRef.current.length} mapped deals`,
+      );
+      syncDealTargets();
+    });
+
+    const showPointer = () => {
+      map.getCanvas().style.cursor = "pointer";
+    };
+    const clearPointer = () => {
+      map.getCanvas().style.cursor = "";
+    };
+
+    map.on("click", CLUSTER_LAYER_ID, expandCluster);
+    map.on("click", PIN_LAYER_ID, openDeal);
+    map.on("mouseenter", CLUSTER_LAYER_ID, showPointer);
+    map.on("mouseleave", CLUSTER_LAYER_ID, clearPointer);
+    map.on("mouseenter", PIN_LAYER_ID, showPointer);
+    map.on("mouseleave", PIN_LAYER_ID, clearPointer);
+    map.on("moveend", syncDealTargets);
+    map.on("resize", syncDealTargets);
+    map.on("error", (event) => {
+      if (mapRef.current !== map || mapSettled) return;
+      if ((event as { sourceId?: string }).sourceId) return;
+      mapSettled = true;
+      onInitializationError?.(
+        event.error?.message ?? "The map could not load.",
+      );
+    });
+
+    return () => {
+      popupRef.current?.remove();
+      popupRef.current = null;
+      syncDealTargetsRef.current = () => {};
+      for (const target of dealTargets.values()) target.marker.remove();
+      mapRef.current = null;
+      map.remove();
+    };
+  }, [onInitializationError]);
+
+  React.useEffect(() => {
+    dealsRef.current = deals;
+    dealsByIdRef.current = new Map(
+      deals.map((deal) => [String(deal.id), deal]),
+    );
+
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource(DEAL_SOURCE_ID) as GeoJSONSource | undefined;
+    source?.setData(dealsToFeatureCollection(deals));
+    syncDealTargetsRef.current();
+    map
+      .getCanvas()
+      .setAttribute(
+        "aria-label",
+        `Interactive map showing ${deals.length} mapped deals`,
+      );
+  }, [deals]);
+
   return (
-    <MapContainer
-      center={SEATTLE}
-      zoom={SEATTLE_ZOOM}
-      scrollWheelZoom
+    <div
+      ref={containerRef}
       className="size-full"
-      style={{ background: "var(--map-bg)" }}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        maxZoom={19}
-      />
-      <ClusterLayer deals={deals} />
-    </MapContainer>
+      data-map-provider="openfreemap"
+      aria-label="Interactive Seattle deals map"
+    />
   );
 }
