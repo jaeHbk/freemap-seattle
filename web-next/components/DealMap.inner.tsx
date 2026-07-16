@@ -259,6 +259,7 @@ export default function DealMapInner({
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
+    let mapSettled = false;
     let map: maplibregl.Map;
     try {
       map = new maplibregl.Map({
@@ -294,7 +295,7 @@ export default function DealMapInner({
     map.addControl(
       new maplibregl.GeolocateControl({
         positionOptions: { enableHighAccuracy: true },
-        fitBoundsOptions: { maxZoom: 14 },
+        fitBoundsOptions: { maxZoom: 14, animate: !reducedMotion },
         trackUserLocation: false,
         showAccuracyCircle: true,
         showUserLocation: true,
@@ -322,13 +323,16 @@ export default function DealMapInner({
         | undefined;
       if (!source || !Number.isFinite(clusterId)) return;
 
-      void source.getClusterExpansionZoom(clusterId).then((zoom) => {
-        map.easeTo({
-          center: coordinates,
-          zoom,
-          duration: reducedMotion ? 0 : 500,
-        });
-      });
+      void source
+        .getClusterExpansionZoom(clusterId)
+        .then((zoom) => {
+          map.easeTo({
+            center: coordinates,
+            zoom,
+            duration: reducedMotion ? 0 : 500,
+          });
+        })
+        .catch(() => {});
     };
 
     const openDealAt = (deal: Deal, coordinates: [number, number]) => {
@@ -417,6 +421,7 @@ export default function DealMapInner({
 
     map.once("load", () => {
       if (mapRef.current !== map) return;
+      mapSettled = true;
       addDealLayers(map, dealsRef.current);
       const canvas = map.getCanvas();
       canvas.setAttribute(
@@ -441,6 +446,14 @@ export default function DealMapInner({
     map.on("mouseleave", PIN_LAYER_ID, clearPointer);
     map.on("moveend", syncDealTargets);
     map.on("resize", syncDealTargets);
+    map.on("error", (event) => {
+      if (mapRef.current !== map || mapSettled) return;
+      if ((event as { sourceId?: string }).sourceId) return;
+      mapSettled = true;
+      onInitializationError?.(
+        event.error?.message ?? "The map could not load.",
+      );
+    });
 
     return () => {
       popupRef.current?.remove();
