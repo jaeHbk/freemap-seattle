@@ -64,6 +64,7 @@ export default function Home() {
     null,
   );
   const [urlReady, setUrlReady] = React.useState(false);
+  const [fetchedDeal, setFetchedDeal] = React.useState<Deal | null>(null);
 
   const applyUrlState = React.useCallback((next: AppUrlState) => {
     setView(next.view);
@@ -162,6 +163,36 @@ export default function Home() {
     return () => ctrl.abort();
   }, []);
 
+  const inMemoryDeal =
+    deals.find((deal) => String(deal.id) === selectedDealId) ?? null;
+
+  // Hydrate the details drawer from the single-deal route when the open deal is
+  // absent from the loaded payload — a filter change dropped it, or a shared/deep
+  // link points at a deal outside the recipient's default set. Waits for the
+  // payload (a still-arriving deal is not "missing"); a definitive failure closes
+  // the drawer so the URL and UI stop advertising an open detail that never renders.
+  React.useEffect(() => {
+    if (
+      !detailsOpen ||
+      !selectedDealId ||
+      state.kind !== "ready" ||
+      inMemoryDeal
+    ) {
+      return;
+    }
+    const ctrl = new AbortController();
+    fetch(`/api/deals/${encodeURIComponent(selectedDealId)}`, {
+      signal: ctrl.signal,
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((deal: Deal) => setFetchedDeal(deal))
+      .catch(() => {
+        if (ctrl.signal.aborted) return;
+        setDetailsOpen(false);
+      });
+    return () => ctrl.abort();
+  }, [detailsOpen, selectedDealId, state.kind, inMemoryDeal]);
+
   const mapDeals = React.useMemo(() => dealsForMap(deals, filters), [deals, filters]);
   const listDeals = React.useMemo(
     () => sortDealsByDistance(dealsForList(deals, filters), origin),
@@ -172,7 +203,10 @@ export default function Home() {
     filters.type || filters.category || filters.placement || filters.includeStale,
   );
   const selectedDeal =
-    deals.find((deal) => String(deal.id) === selectedDealId) ?? null;
+    inMemoryDeal ??
+    (fetchedDeal && String(fetchedDeal.id) === selectedDealId
+      ? fetchedDeal
+      : null);
 
   const clearFilters = React.useCallback(() => setFilters(EMPTY_FILTERS), []);
   const selectDeal = React.useCallback(

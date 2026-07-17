@@ -48,7 +48,16 @@ test("detail and metadata routes preserve their HTTP contracts", async ({
     eligibility: "All visitors.",
     redemption: "Present the offer before payment.",
     verified_at: "2026-07-16T00:00:00",
+    status: "active",
   });
+
+  // status is computed at read time, not read from the stored column: deal 3 is
+  // stored "active" but its last_seen is ancient, so the detail route must
+  // recompute "stale". This is what lets the drawer hydrate dropped/deep-linked
+  // deals with a correct badge.
+  await expect((await request.get("/api/deals/3")).json()).resolves.toMatchObject(
+    { id: 3, status: "stale" },
+  );
 
   expect((await request.get("/api/deals/9999")).status()).toBe(404);
   expect((await request.get("/api/deals/not-an-int")).status()).toBe(422);

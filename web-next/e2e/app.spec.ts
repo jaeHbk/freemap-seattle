@@ -170,6 +170,18 @@ async function mockBoundaries(page: Page) {
       });
       return;
     }
+    const detailMatch = url.pathname.match(/^\/api\/deals\/(\d+)$/);
+    if (detailMatch) {
+      const deal = [...ACTIVE_DEALS, STALE_DEAL].find(
+        (candidate) => String(candidate.id) === detailMatch[1],
+      );
+      await route.fulfill(
+        deal
+          ? { json: deal }
+          : { status: 404, json: { error: "deal not found" } },
+      );
+      return;
+    }
     await route.fulfill({ status: 404, json: { error: "Not mocked" } });
   });
 }
@@ -240,6 +252,21 @@ test("list filters and structured deal details survive reload", async ({
     .getByText("Last checked", { exact: true })
     .locator("xpath=following-sibling::dd[1]");
   await expect(checkedValue).toHaveText("Jul 16, 2026");
+});
+
+test("details drawer hydrates a deep-linked deal outside the default payload", async ({
+  page,
+}) => {
+  // Deal 104 is stale, so it is absent from the default /api/deals payload. A
+  // shared link with details=1 must hydrate the drawer from /api/deals/104
+  // rather than silently render nothing.
+  await page.goto("/?view=list&deal=104&details=1");
+
+  await expect(page.getByText("Deal details", { exact: true })).toBeVisible();
+  await expect(page.getByText("Free stale sample")).toBeVisible();
+  await expect(page.locator('[data-deal-id="104"]')).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get("deal")).toBe("104");
+  expect(new URL(page.url()).searchParams.get("details")).toBe("1");
 });
 
 test("map, selected deal, location, distance order, and camera stay synchronized", async ({
