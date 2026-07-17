@@ -82,58 +82,58 @@ def test_expected_source_with_required_map_pins_passes():
 
 def test_expected_source_below_deal_coverage_floor_fails():
     result = evaluate_health(
-        {"places_brand": _run(39)},
+        {"places_brand": _run(42)},
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 38},
-        minimum_pins={"places_brand": 38},
-        minimum_deals={"places_brand": 40},
+        pin_counts={"places_brand": 40},
+        minimum_pins={"places_brand": 40},
+        minimum_deals={"places_brand": 43},
     )
 
     assert result["ok"] is False
     assert result["problems"][0]["reason"] == (
-        "found 39 deals (minimum: 40)"
+        "found 42 deals (minimum: 43)"
     )
 
 
 def test_expected_source_at_coverage_floors_passes():
     result = evaluate_health(
-        {"places_brand": _run(40)},
+        {"places_brand": _run(43)},
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 38},
-        minimum_pins={"places_brand": 38},
-        minimum_deals={"places_brand": 40},
+        pin_counts={"places_brand": 40},
+        minimum_pins={"places_brand": 40},
+        minimum_deals={"places_brand": 43},
     )
 
     assert result["ok"] is True
 
 
 def test_expected_source_below_stored_coverage_floor_fails():
-    run = _run(40)
-    run["deals_upserted"] = 39
+    run = _run(43)
+    run["deals_upserted"] = 42
     result = evaluate_health(
         {"places_brand": run},
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 38},
-        minimum_pins={"places_brand": 38},
-        minimum_deals={"places_brand": 40},
+        pin_counts={"places_brand": 40},
+        minimum_pins={"places_brand": 40},
+        minimum_deals={"places_brand": 43},
     )
 
     assert result["ok"] is False
     assert result["problems"][0]["reason"] == (
-        "upserted 39 deals (minimum: 40)"
+        "upserted 42 deals (minimum: 43)"
     )
 
 
 def test_health_report_includes_operational_telemetry():
     latest = {
         "places_brand": {
-            "deals_found": 40,
-            "deals_upserted": 40,
-            "map_pins": 38,
-            "geocode_failures": 2,
+            "deals_found": 43,
+            "deals_upserted": 43,
+            "map_pins": 40,
+            "geocode_failures": 3,
             "duration_ms": 1250,
             "errors": None,
         }
@@ -142,9 +142,9 @@ def test_health_report_includes_operational_telemetry():
         latest,
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 38},
-        minimum_pins={"places_brand": 38},
-        minimum_deals={"places_brand": 40},
+        pin_counts={"places_brand": 40},
+        minimum_pins={"places_brand": 40},
+        minimum_deals={"places_brand": 43},
     )
 
     report = format_report(
@@ -152,12 +152,12 @@ def test_health_report_includes_operational_telemetry():
         latest,
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 38},
-        minimum_pins={"places_brand": 38},
+        pin_counts={"places_brand": 40},
+        minimum_pins={"places_brand": 40},
     )
 
-    assert "found=40 upserted=40 pins=38" in report
-    assert "geocode_failed=2 duration_ms=1250" in report
+    assert "found=43 upserted=43 pins=40" in report
+    assert "geocode_failed=3 duration_ms=1250" in report
     assert report.endswith("HEALTHY")
 
 

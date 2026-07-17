@@ -79,11 +79,11 @@ The health baseline is:
 
 - `expected = ["places_brand"]`
 - `optional = ["reddit"]`
-- `minimum_deals = { places_brand = 40 }`
-- `minimum_pins = { places_brand = 38 }`
+- `minimum_deals = { places_brand = 43 }`
+- `minimum_pins = { places_brand = 40 }`
 
 Health fails when the latest required run is missing, stale, errored, fetches or
-stores fewer than all 40 configured deals, or produces fewer than 38 current
+stores fewer than all 43 configured deals, or produces fewer than 40 current
 map pins.
 Every workflow run writes found/upserted/pin/geocode-failure/duration telemetry
 to its GitHub Actions summary.

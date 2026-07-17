@@ -35,10 +35,10 @@ The enabled source set is:
 
 The scrape command prints `found`, `upserted`, `pins`, `geocode_failed`,
 `duration_ms`, and `ok` or `ERROR` for each source. The health command must
-print `[ok] places_brand` with `found=40`, at least `pins=38`, and finish with
+print `[ok] places_brand` with `found=43`, at least `pins=40`, and finish with
 `HEALTHY`. Reddit is reported as `[opt]` and does not control the exit code.
 
-Any missing, errored, stale, sub-40-fetched, sub-40-stored, or sub-38-pin
+Any missing, errored, stale, sub-43-fetched, sub-43-stored, or sub-40-pin
 `places_brand` run is a failure.
 
 ## Verify rows

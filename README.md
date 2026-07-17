@@ -22,7 +22,7 @@ GitHub Actions (12h cron) --writes--> Turso <--reads-- Next.js on Vercel
   an ephemeral runner database.
 - Each source run records found/upserted counts, mapped pins, geocode failures,
   duration, completion time, and error status.
-- The health gate requires all 40 verified `places_brand` deals and at least 38
+- The health gate requires all 43 verified `places_brand` deals and at least 40
   current map pins. A partial source or geocoder regression cannot stay green.
 - A failed scheduled scrape opens or updates one GitHub issue; the next healthy
   run comments on and closes it.

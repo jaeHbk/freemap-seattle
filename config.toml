@@ -16,14 +16,14 @@ stale_after_hours = 24
 # configured coverage floors. `optional` sources are reported but do not fail
 # the workflow; Reddit belongs there because a live IP may be rate-limited even
 # though its browser-UA fetch path is functional.
-# Fetched and stored coverage must both match the committed 40-location verified
-# inventory. Two addresses currently fail the keyless Census geocoder, so 38 map
-# pins is the accepted floor; any additional loss alerts operators.
+# Fetched and stored coverage must both match the committed 43-location verified
+# inventory. At least 40 addresses are proven against the keyless Census
+# geocoder; any loss below that measured floor alerts operators.
 [health]
 expected = ["places_brand"]
 optional = ["reddit"]
-minimum_deals = { places_brand = 40 }
-minimum_pins = { places_brand = 38 }
+minimum_deals = { places_brand = 43 }
+minimum_pins = { places_brand = 40 }
 
 [geocoder]
 # provider: "census" (keyless US Census geocoder, the default — works unattended)
@@ -118,9 +118,9 @@ locations = [
 ]
 
 # Verified 2026-07-16 against Starbucks Rewards terms (effective 2026-03-10).
-# Locations are current company-operated Seattle stores whose official locator
-# lists "Redeem Rewards"; restricted-access hospital and office stores are
-# intentionally excluded.
+# Locations were rechecked 2026-07-17 and are current company-operated Seattle
+# stores whose official locator lists "Redeem Rewards"; restricted-access
+# hospital and office stores are intentionally excluded.
 [[sources.places_brand.brands]]
 id = "starbucks-rewards-birthday-drink"
 name = "Starbucks"
@@ -136,9 +136,11 @@ locations = [
   "1101 Alaskan Way, Seattle, WA 98101",
   "1524 7th Ave, Seattle, WA 98101",
   "1912 Pike Pl, Seattle, WA 98101",
+  "1700 7th Ave, Seattle, WA 98101",
   "2011 7th Ave, Seattle, WA 98121",
   "800 12th Ave, Seattle, WA 98122",
   "442 Terry Ave N, Seattle, WA 98109",
+  "1962 1st Ave S, Seattle, WA 98134",
   "121 Lakeside Ave, Seattle, WA 98122",
   "1144 Elliott Ave W, Seattle, WA 98119",
   "2135 Queen Anne Ave N, Seattle, WA 98109",
@@ -148,6 +150,7 @@ locations = [
   "3300 W McGraw St, Seattle, WA 98199",
   "601 S Michigan St, Seattle, WA 98108",
   "4634 26th Ave NE, Seattle, WA 98105",
+  "2650 NE 49th St, Seattle, WA 98105",
   "999 Leary Way NW, Seattle, WA 98107",
   "5221 15th Ave NW, Seattle, WA 98107",
   "6310 Martin Luther King Jr Way S, Seattle, WA 98118",
