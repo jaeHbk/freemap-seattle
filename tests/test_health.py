@@ -109,6 +109,24 @@ def test_expected_source_at_coverage_floors_passes():
     assert result["ok"] is True
 
 
+def test_expected_source_below_stored_coverage_floor_fails():
+    run = _run(40)
+    run["deals_upserted"] = 39
+    result = evaluate_health(
+        {"places_brand": run},
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 38},
+        minimum_pins={"places_brand": 38},
+        minimum_deals={"places_brand": 40},
+    )
+
+    assert result["ok"] is False
+    assert result["problems"][0]["reason"] == (
+        "upserted 39 deals (minimum: 40)"
+    )
+
+
 def test_health_report_includes_operational_telemetry():
     latest = {
         "places_brand": {

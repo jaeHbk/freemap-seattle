@@ -16,9 +16,9 @@ stale_after_hours = 24
 # configured coverage floors. `optional` sources are reported but do not fail
 # the workflow; Reddit belongs there because a live IP may be rate-limited even
 # though its browser-UA fetch path is functional.
-# Coverage floors match the committed 40-location verified inventory. Two
-# addresses currently fail the keyless Census geocoder, so 38 map pins is the
-# accepted floor; any additional loss alerts operators.
+# Fetched and stored coverage must both match the committed 40-location verified
+# inventory. Two addresses currently fail the keyless Census geocoder, so 38 map
+# pins is the accepted floor; any additional loss alerts operators.
 [health]
 expected = ["places_brand"]
 optional = ["reddit"]

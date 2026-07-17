@@ -226,6 +226,20 @@ test("list filters and structured deal details survive reload", async ({
     "aria-selected",
     "true",
   );
+
+  await page.getByRole("button", { name: "Close deal details" }).click();
+  await page
+    .locator('[data-deal-id="103"]')
+    .getByRole("button", { name: "Details" })
+    .click();
+  const verifiedValue = page
+    .getByText("Verified", { exact: true })
+    .locator("xpath=following-sibling::dd[1]");
+  await expect(verifiedValue).toHaveText("Not supplied");
+  const checkedValue = page
+    .getByText("Last checked", { exact: true })
+    .locator("xpath=following-sibling::dd[1]");
+  await expect(checkedValue).toHaveText("Jul 16, 2026");
 });
 
 test("map, selected deal, location, distance order, and camera stay synchronized", async ({

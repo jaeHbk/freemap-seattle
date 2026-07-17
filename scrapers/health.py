@@ -150,6 +150,22 @@ def evaluate_health(
                     "errors": None,
                 }
             )
+        elif (
+            run.get("deals_upserted") is not None
+            and run["deals_upserted"] < minimum_deals.get(source, 0)
+        ):
+            upserted = run["deals_upserted"]
+            required = minimum_deals[source]
+            problems.append(
+                {
+                    "source": source,
+                    "reason": (
+                        f"upserted {upserted} deals (minimum: {required})"
+                    ),
+                    "deals_found": found,
+                    "errors": None,
+                }
+            )
         elif pin_counts.get(source, 0) < minimum_pins.get(source, 0):
             pins = pin_counts.get(source, 0)
             required = minimum_pins[source]

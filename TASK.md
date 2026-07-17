@@ -38,8 +38,8 @@ The scrape command prints `found`, `upserted`, `pins`, `geocode_failed`,
 print `[ok] places_brand` with `found=40`, at least `pins=38`, and finish with
 `HEALTHY`. Reddit is reported as `[opt]` and does not control the exit code.
 
-Any missing, errored, stale, sub-40-deal, or sub-38-pin `places_brand` run is a
-failure.
+Any missing, errored, stale, sub-40-fetched, sub-40-stored, or sub-38-pin
+`places_brand` run is a failure.
 
 ## Verify rows
 

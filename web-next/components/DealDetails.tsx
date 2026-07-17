@@ -167,7 +167,11 @@ export function DealDetails({
                 </dd>
                 <dt>Verified</dt>
                 <dd className="text-right font-medium text-foreground">
-                  {verified ?? lastSeen ?? "Not supplied"}
+                  {verified ?? "Not supplied"}
+                </dd>
+                <dt>Last checked</dt>
+                <dd className="text-right font-medium text-foreground">
+                  {lastSeen ?? "Not supplied"}
                 </dd>
               </dl>
             </DetailSection>
