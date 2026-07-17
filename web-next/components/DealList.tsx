@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { ExternalLink, Globe, MapPin, SearchX, Clock } from "lucide-react";
+import {
+  Clock,
+  ExternalLink,
+  Globe,
+  MapPinned,
+  MapPinOff,
+  SearchX,
+} from "lucide-react";
 import {
   TextureCard,
   TextureCardContent,
@@ -11,6 +18,32 @@ import { cn } from "@/lib/utils";
 import { safeHttpUrl } from "@/components/deals";
 import type { Deal } from "@/components/deals";
 import { TYPE_STYLE, STATUS_LABEL } from "@/components/deal-style";
+
+function locationPresentation(deal: Deal) {
+  if (deal.placement === "online") {
+    return {
+      icon: <Globe className="size-3.5" />,
+      label: "Online",
+      detail: deal.raw_location,
+    };
+  }
+  if (
+    deal.geocode_status === "ok" &&
+    deal.lat != null &&
+    deal.lng != null
+  ) {
+    return {
+      icon: <MapPinned className="size-3.5" />,
+      label: "On map",
+      detail: deal.raw_location,
+    };
+  }
+  return {
+    icon: <MapPinOff className="size-3.5" />,
+    label: "Map location unavailable",
+    detail: deal.raw_location,
+  };
+}
 
 function ShapeGlyph({ shape, color }: { shape: string; color: string }) {
   const base = "inline-block size-2.5 shrink-0";
@@ -31,6 +64,7 @@ function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: 
   const ts = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
   const stale = deal.status === "stale";
   const href = safeHttpUrl(deal.url);
+  const location = locationPresentation(deal);
 
   return (
     <motion.li
@@ -74,14 +108,17 @@ function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: 
             </p>
           )}
 
-          <div className="mt-auto flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              {deal.placement === "online" ? (
-                <Globe className="size-3.5" />
-              ) : (
-                <MapPin className="size-3.5" />
+          <div className="mt-auto flex items-end justify-between gap-3 pt-1 text-xs text-muted-foreground">
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="inline-flex items-center gap-1.5 font-medium text-foreground/75">
+                {location.icon}
+                {location.label}
+              </span>
+              {location.detail && (
+                <span className="line-clamp-2 leading-snug">
+                  {location.detail}
+                </span>
               )}
-              {deal.raw_location || (deal.placement === "online" ? "Online" : "In person")}
             </span>
             {href ? (
               <a

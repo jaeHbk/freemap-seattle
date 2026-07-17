@@ -83,12 +83,6 @@ export function matchesFilters(deal: Deal, state: FilterState): boolean {
   return true;
 }
 
-// belongsInList(deal) -> a deal belongs in the list view if it is online, OR a
-// physical deal we could not geocode (so it is never lost). Ported from web/list.js.
-export function belongsInList(deal: Deal): boolean {
-  return deal.placement === "online" || deal.geocode_status === "failed";
-}
-
 // hasCoords — a deal that can be plotted: physical + real lat/lng.
 export function hasCoords(deal: Deal): deal is Deal & { lat: number; lng: number } {
   return deal.placement === "physical" && deal.lat != null && deal.lng != null;
@@ -102,7 +96,8 @@ export function dealsForMap(deals: Deal[], state: FilterState): Deal[] {
   return deals.filter((d) => hasCoords(d) && matchesFilters(d, state));
 }
 
-// dealsForList(deals, state) -> online + failed-geocode deals passing filters.
+// The list is an alternate presentation of the full filtered result set. Unlike
+// the map, it can represent online and ungeocoded physical deals as well.
 export function dealsForList(deals: Deal[], state: FilterState): Deal[] {
-  return deals.filter((d) => belongsInList(d) && matchesFilters(d, state));
+  return deals.filter((deal) => matchesFilters(deal, state));
 }

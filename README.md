@@ -1,8 +1,8 @@
 # FreeMap Seattle
 
-FreeMap surfaces free and buy-one-get-one (BOGO) offers in Seattle. Geocoded
-physical offers appear on an interactive map; online offers and physical offers
-that could not be geocoded appear in a list.
+FreeMap surfaces free and buy-one-get-one (BOGO) offers in Seattle. Every
+matching offer appears in the list, while geocoded physical offers also appear
+on an interactive map.
 
 ## Production architecture
 
