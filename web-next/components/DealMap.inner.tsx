@@ -12,6 +12,8 @@ import {
 import { TYPE_STYLE, STATUS_LABEL } from "@/components/deal-style";
 import { safeHttpUrl, SEATTLE, SEATTLE_ZOOM } from "@/components/deals";
 import type { Deal } from "@/components/deals";
+import type { SearchOrigin } from "@/lib/location";
+import type { MapViewport } from "@/lib/url-state";
 
 const DEAL_SOURCE_ID = "freemap-deals";
 const CLUSTER_LAYER_ID = "freemap-deal-clusters";
@@ -86,7 +88,7 @@ function addPinImages(map: maplibregl.Map) {
 }
 
 // Build popup DOM with textContent so scraped fields can never inject markup.
-function popupFor(deal: Deal): HTMLElement {
+function popupFor(deal: Deal, onViewDetails: () => void): HTMLElement {
   const typeStyle = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
   const root = document.createElement("div");
   root.className = "fm-popup";
@@ -108,6 +110,16 @@ function popupFor(deal: Deal): HTMLElement {
     root.appendChild(location);
   }
 
+  const actions = document.createElement("div");
+  actions.className = "fm-popup-actions";
+
+  const detailButton = document.createElement("button");
+  detailButton.type = "button";
+  detailButton.className = "fm-popup-detail";
+  detailButton.textContent = "Details";
+  detailButton.addEventListener("click", onViewDetails);
+  actions.appendChild(detailButton);
+
   const safeUrl = safeHttpUrl(deal.url);
   if (safeUrl) {
     const link = document.createElement("a");
@@ -116,13 +128,14 @@ function popupFor(deal: Deal): HTMLElement {
     link.rel = "noopener noreferrer";
     link.className = "fm-popup-link";
     link.textContent = "View deal";
-    root.appendChild(link);
+    actions.appendChild(link);
   } else {
     const unavailable = document.createElement("span");
     unavailable.className = "fm-popup-loc";
     unavailable.textContent = "Deal link unavailable";
-    root.appendChild(unavailable);
+    actions.appendChild(unavailable);
   }
+  root.appendChild(actions);
 
   return root;
 }
@@ -237,21 +250,62 @@ function pointCoordinates(
 
 interface DealMapInnerProps {
   deals: Deal[];
+  origin: SearchOrigin | null;
+  selectedDealId: string | null;
+  viewport: MapViewport | null;
+  onSelectDeal: (dealId: string) => void;
+  onViewDetails: (dealId: string) => void;
+  onViewportChange: (viewport: MapViewport) => void;
   onInitializationError?: (message: string) => void;
 }
 
 export default function DealMapInner({
   deals,
+  origin,
+  selectedDealId,
+  viewport,
+  onSelectDeal,
+  onViewDetails,
+  onViewportChange,
   onInitializationError,
 }: DealMapInnerProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const mapRef = React.useRef<maplibregl.Map | null>(null);
   const popupRef = React.useRef<maplibregl.Popup | null>(null);
+  const originMarkerRef = React.useRef<maplibregl.Marker | null>(null);
   const dealsRef = React.useRef(deals);
+  const originRef = React.useRef(origin);
+  const selectedDealIdRef = React.useRef(selectedDealId);
+  const viewportRef = React.useRef(viewport);
+  const onSelectDealRef = React.useRef(onSelectDeal);
+  const onViewDetailsRef = React.useRef(onViewDetails);
+  const onViewportChangeRef = React.useRef(onViewportChange);
   const dealsByIdRef = React.useRef(
     new Map(deals.map((deal) => [String(deal.id), deal])),
   );
   const syncDealTargetsRef = React.useRef<() => void>(() => {});
+  const focusOriginRef = React.useRef<
+    (origin: SearchOrigin | null, moveCamera?: boolean) => void
+  >(() => {});
+  const openSelectedDealRef = React.useRef<
+    (dealId: string | null, moveCamera?: boolean) => void
+  >(() => {});
+
+  React.useEffect(() => {
+    originRef.current = origin;
+    selectedDealIdRef.current = selectedDealId;
+    viewportRef.current = viewport;
+    onSelectDealRef.current = onSelectDeal;
+    onViewDetailsRef.current = onViewDetails;
+    onViewportChangeRef.current = onViewportChange;
+  }, [
+    onSelectDeal,
+    onViewDetails,
+    onViewportChange,
+    origin,
+    selectedDealId,
+    viewport,
+  ]);
 
   React.useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -261,12 +315,15 @@ export default function DealMapInner({
     ).matches;
     let mapSettled = false;
     let map: maplibregl.Map;
+    const initialViewport = viewportRef.current;
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
         style: OPENFREEMAP_STYLE_URL,
-        center: [SEATTLE[1], SEATTLE[0]],
-        zoom: SEATTLE_ZOOM,
+        center: initialViewport
+          ? [initialViewport.lng, initialViewport.lat]
+          : [SEATTLE[1], SEATTLE[0]],
+        zoom: initialViewport?.zoom ?? SEATTLE_ZOOM,
         minZoom: 8,
         maxZoom: 19,
         pitchWithRotate: false,
@@ -336,6 +393,7 @@ export default function DealMapInner({
     };
 
     const openDealAt = (deal: Deal, coordinates: [number, number]) => {
+      onSelectDealRef.current(String(deal.id));
       popupRef.current?.remove();
       popupRef.current = new maplibregl.Popup({
         closeButton: true,
@@ -345,8 +403,70 @@ export default function DealMapInner({
         offset: 26,
       })
         .setLngLat(coordinates)
-        .setDOMContent(popupFor(deal))
+        .setDOMContent(
+          popupFor(deal, () => onViewDetailsRef.current(String(deal.id))),
+        )
         .addTo(map);
+    };
+
+    const focusOrigin = (
+      nextOrigin: SearchOrigin | null,
+      moveCamera = true,
+    ) => {
+      originMarkerRef.current?.remove();
+      originMarkerRef.current = null;
+      if (!nextOrigin) return;
+
+      const markerElement = document.createElement("div");
+      markerElement.className = "fm-search-origin";
+      markerElement.setAttribute("aria-label", nextOrigin.label);
+      markerElement.title = nextOrigin.label;
+      originMarkerRef.current = new maplibregl.Marker({
+        element: markerElement,
+        anchor: "center",
+      })
+        .setLngLat([nextOrigin.lng, nextOrigin.lat])
+        .addTo(map);
+      if (moveCamera) {
+        map.easeTo({
+          center: [nextOrigin.lng, nextOrigin.lat],
+          zoom: Math.max(map.getZoom(), 13),
+          duration: reducedMotion ? 0 : 600,
+        });
+      }
+    };
+    focusOriginRef.current = focusOrigin;
+
+    const openSelectedDeal = (
+      dealId: string | null,
+      moveCamera = true,
+    ) => {
+      if (!dealId) {
+        popupRef.current?.remove();
+        popupRef.current = null;
+        return;
+      }
+      const deal = dealsByIdRef.current.get(dealId);
+      if (deal?.lat == null || deal.lng == null) return;
+      const coordinates: [number, number] = [deal.lng, deal.lat];
+      if (moveCamera) {
+        map.easeTo({
+          center: coordinates,
+          zoom: Math.max(map.getZoom(), 15),
+          duration: reducedMotion ? 0 : 500,
+        });
+      }
+      openDealAt(deal, coordinates);
+    };
+    openSelectedDealRef.current = openSelectedDeal;
+
+    const reportViewport = () => {
+      const center = map.getCenter();
+      onViewportChangeRef.current({
+        lat: center.lat,
+        lng: center.lng,
+        zoom: map.getZoom(),
+      });
     };
 
     const expandCluster = (event: MapLayerMouseEvent) => {
@@ -429,6 +549,14 @@ export default function DealMapInner({
         `Interactive map showing ${dealsRef.current.length} mapped deals`,
       );
       syncDealTargets();
+      focusOrigin(originRef.current, !initialViewport);
+      openSelectedDeal(selectedDealIdRef.current, !initialViewport);
+      if (
+        initialViewport ||
+        (!originRef.current && !selectedDealIdRef.current)
+      ) {
+        reportViewport();
+      }
     });
 
     const showPointer = () => {
@@ -444,7 +572,10 @@ export default function DealMapInner({
     map.on("mouseleave", CLUSTER_LAYER_ID, clearPointer);
     map.on("mouseenter", PIN_LAYER_ID, showPointer);
     map.on("mouseleave", PIN_LAYER_ID, clearPointer);
-    map.on("moveend", syncDealTargets);
+    map.on("moveend", () => {
+      syncDealTargets();
+      reportViewport();
+    });
     map.on("resize", syncDealTargets);
     map.on("error", (event) => {
       if (mapRef.current !== map || mapSettled) return;
@@ -458,12 +589,42 @@ export default function DealMapInner({
     return () => {
       popupRef.current?.remove();
       popupRef.current = null;
+      originMarkerRef.current?.remove();
+      originMarkerRef.current = null;
       syncDealTargetsRef.current = () => {};
+      focusOriginRef.current = () => {};
+      openSelectedDealRef.current = () => {};
       for (const target of dealTargets.values()) target.marker.remove();
       mapRef.current = null;
       map.remove();
     };
   }, [onInitializationError]);
+
+  React.useEffect(() => {
+    focusOriginRef.current(origin, false);
+  }, [origin]);
+
+  React.useEffect(() => {
+    openSelectedDealRef.current(selectedDealId, false);
+  }, [selectedDealId]);
+
+  React.useEffect(() => {
+    viewportRef.current = viewport;
+    const map = mapRef.current;
+    if (!map || !viewport) return;
+    const center = map.getCenter();
+    if (
+      Math.abs(center.lat - viewport.lat) < 0.00001 &&
+      Math.abs(center.lng - viewport.lng) < 0.00001 &&
+      Math.abs(map.getZoom() - viewport.zoom) < 0.01
+    ) {
+      return;
+    }
+    map.jumpTo({
+      center: [viewport.lng, viewport.lat],
+      zoom: viewport.zoom,
+    });
+  }, [viewport]);
 
   React.useEffect(() => {
     dealsRef.current = deals;

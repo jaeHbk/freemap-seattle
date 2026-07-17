@@ -38,9 +38,6 @@ jobs:
           cache: npm
           cache-dependency-path: web-next/package-lock.json
 
-      - name: Run legacy frontend tests
-        run: node --test web/*.test.js
-
       - name: Install Next.js dependencies
         working-directory: web-next
         run: npm ci
@@ -52,6 +49,14 @@ jobs:
       - name: Lint Next.js
         working-directory: web-next
         run: npm run lint
+
+      - name: Install Playwright Chromium
+        working-directory: web-next
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser tests
+        working-directory: web-next
+        run: npm run test:e2e
 
       - name: Build Next.js
         working-directory: web-next

@@ -2,7 +2,17 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { ExternalLink, Globe, MapPin, SearchX, Clock } from "lucide-react";
+import {
+  Clock,
+  ExternalLink,
+  Globe,
+  Info,
+  Map,
+  MapPinned,
+  MapPinOff,
+  SearchX,
+  Heart,
+} from "lucide-react";
 import {
   TextureCard,
   TextureCardContent,
@@ -11,6 +21,37 @@ import { cn } from "@/lib/utils";
 import { safeHttpUrl } from "@/components/deals";
 import type { Deal } from "@/components/deals";
 import { TYPE_STYLE, STATUS_LABEL } from "@/components/deal-style";
+import {
+  dealDistanceMiles,
+  type SearchOrigin,
+} from "@/lib/location";
+import { dealPreferenceKey } from "@/lib/deal-preferences";
+
+function locationPresentation(deal: Deal) {
+  if (deal.placement === "online") {
+    return {
+      icon: <Globe className="size-3.5" />,
+      label: "Online",
+      detail: deal.raw_location,
+    };
+  }
+  if (
+    deal.geocode_status === "ok" &&
+    deal.lat != null &&
+    deal.lng != null
+  ) {
+    return {
+      icon: <MapPinned className="size-3.5" />,
+      label: "On map",
+      detail: deal.raw_location,
+    };
+  }
+  return {
+    icon: <MapPinOff className="size-3.5" />,
+    label: "Map location unavailable",
+    detail: deal.raw_location,
+  };
+}
 
 function ShapeGlyph({ shape, color }: { shape: string; color: string }) {
   const base = "inline-block size-2.5 shrink-0";
@@ -27,18 +68,55 @@ function ShapeGlyph({ shape, color }: { shape: string; color: string }) {
   return <span className={cn(base, "rounded-full")} style={{ background: color }} aria-hidden />;
 }
 
-function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: boolean | null }) {
+interface DealCardProps {
+  deal: Deal;
+  index: number;
+  reduce: boolean | null;
+  origin: SearchOrigin | null;
+  selected: boolean;
+  favorite: boolean;
+  onSelectDeal: (dealId: string) => void;
+  onToggleFavorite: (deal: Deal) => void;
+  onShowOnMap: (dealId: string) => void;
+  onViewDetails: (dealId: string) => void;
+}
+
+function DealCard({
+  deal,
+  index,
+  reduce,
+  origin,
+  selected,
+  favorite,
+  onSelectDeal,
+  onToggleFavorite,
+  onShowOnMap,
+  onViewDetails,
+}: DealCardProps) {
   const ts = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
   const stale = deal.status === "stale";
   const href = safeHttpUrl(deal.url);
+  const location = locationPresentation(deal);
+  const distance = dealDistanceMiles(deal, origin);
+  const dealId = String(deal.id);
+  const mapped = deal.lat != null && deal.lng != null;
 
   return (
     <motion.li
+      data-deal-id={dealId}
+      aria-current={selected ? "true" : undefined}
+      onFocusCapture={() => onSelectDeal(dealId)}
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: Math.min(index * 0.03, 0.3), ease: [0.22, 1, 0.36, 1] }}
     >
-      <TextureCard className={cn("h-full transition-opacity", stale && "opacity-65")}>
+      <TextureCard
+        className={cn(
+          "h-full transition-[opacity,box-shadow,border-color]",
+          stale && "opacity-65",
+          selected && "border-primary/60 ring-2 ring-primary/20",
+        )}
+      >
         <TextureCardContent className="flex h-full flex-col gap-3 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <span
@@ -51,9 +129,30 @@ function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: 
             <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize text-muted-foreground">
               {deal.category}
             </span>
+            <button
+              type="button"
+              onClick={() => onToggleFavorite(deal)}
+              aria-label={`${favorite ? "Remove" : "Add"} ${deal.title} ${
+                favorite ? "from" : "to"
+              } favorites`}
+              aria-pressed={favorite}
+              title={favorite ? "Remove from favorites" : "Add to favorites"}
+              className={cn(
+                "ml-auto flex size-8 items-center justify-center rounded-lg transition-colors",
+                favorite
+                  ? "bg-primary/10 text-primary hover:bg-primary/20"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+            >
+              <Heart
+                className="size-4"
+                fill={favorite ? "currentColor" : "none"}
+              />
+            </button>
             <span
               className={cn(
-                "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-medium",
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-medium",
                 stale
                   ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
                   : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
@@ -74,31 +173,62 @@ function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: 
             </p>
           )}
 
-          <div className="mt-auto flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              {deal.placement === "online" ? (
-                <Globe className="size-3.5" />
-              ) : (
-                <MapPin className="size-3.5" />
-              )}
-              {deal.raw_location || (deal.placement === "online" ? "Online" : "In person")}
-            </span>
-            {href ? (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-md font-semibold text-primary transition-colors hover:text-primary/80",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          <div className="mt-auto flex items-end justify-between gap-3 pt-1 text-xs text-muted-foreground">
+            <span className="flex min-w-0 flex-col gap-1">
+              <span className="inline-flex items-center gap-1.5 font-medium text-foreground/75">
+                {location.icon}
+                {location.label}
+                {distance != null && (
+                  <span className="tabular-nums text-muted-foreground">
+                    · {distance < 0.1 ? "<0.1" : distance.toFixed(1)} mi
+                  </span>
                 )}
+              </span>
+              {location.detail && (
+                <span className="line-clamp-2 leading-snug">
+                  {location.detail}
+                </span>
+              )}
+            </span>
+            <span className="flex shrink-0 flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectDeal(dealId);
+                  onViewDetails(dealId);
+                }}
+                className="inline-flex items-center gap-1 rounded-md font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                View deal
-                <ExternalLink className="size-3.5" />
-              </a>
-            ) : (
-              <span className="italic text-muted-foreground/70">link unavailable</span>
-            )}
+                <Info className="size-3.5" />
+                Details
+              </button>
+              {mapped && (
+                <button
+                  type="button"
+                  onClick={() => onShowOnMap(dealId)}
+                  className="inline-flex items-center gap-1 rounded-md font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Map className="size-3.5" />
+                  Show on map
+                </button>
+              )}
+              {href ? (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-md font-semibold text-primary transition-colors hover:text-primary/80",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  )}
+                >
+                  View deal
+                  <ExternalLink className="size-3.5" />
+                </a>
+              ) : (
+                <span className="italic text-muted-foreground/70">link unavailable</span>
+              )}
+            </span>
           </div>
         </TextureCardContent>
       </TextureCard>
@@ -108,11 +238,41 @@ function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: 
 
 interface DealListProps {
   deals: Deal[];
+  origin: SearchOrigin | null;
+  selectedDealId: string | null;
+  favoriteDealKeys: ReadonlySet<string>;
+  onSelectDeal: (dealId: string) => void;
+  onToggleFavorite: (deal: Deal) => void;
+  onShowOnMap: (dealId: string) => void;
+  onViewDetails: (dealId: string) => void;
   onClearFilters: () => void;
 }
 
-export function DealList({ deals, onClearFilters }: DealListProps) {
+export function DealList({
+  deals,
+  origin,
+  selectedDealId,
+  favoriteDealKeys,
+  onSelectDeal,
+  onToggleFavorite,
+  onShowOnMap,
+  onViewDetails,
+  onClearFilters,
+}: DealListProps) {
   const reduce = useReducedMotion();
+  const listRef = React.useRef<HTMLUListElement>(null);
+
+  React.useEffect(() => {
+    if (!selectedDealId) return;
+    const selected = Array.from(listRef.current?.children ?? []).find(
+      (element) =>
+        (element as HTMLElement).dataset.dealId === selectedDealId,
+    );
+    selected?.scrollIntoView({
+      block: "nearest",
+      behavior: reduce ? "auto" : "smooth",
+    });
+  }, [reduce, selectedDealId]);
 
   if (deals.length === 0) {
     return (
@@ -138,9 +298,24 @@ export function DealList({ deals, onClearFilters }: DealListProps) {
   }
 
   return (
-    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <ul
+      ref={listRef}
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+    >
       {deals.map((d, i) => (
-        <DealCard key={d.id} deal={d} index={i} reduce={reduce} />
+        <DealCard
+          key={d.id}
+          deal={d}
+          index={i}
+          reduce={reduce}
+          origin={origin}
+          selected={String(d.id) === selectedDealId}
+          favorite={favoriteDealKeys.has(dealPreferenceKey(d))}
+          onSelectDeal={onSelectDeal}
+          onToggleFavorite={onToggleFavorite}
+          onShowOnMap={onShowOnMap}
+          onViewDetails={onViewDetails}
+        />
       ))}
     </ul>
   );

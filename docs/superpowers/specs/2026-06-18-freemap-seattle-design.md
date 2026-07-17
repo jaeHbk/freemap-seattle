@@ -4,6 +4,18 @@
 **Status:** Approved (design); pending implementation plan
 **Working name:** FreeMap Seattle
 
+> **Superseded / historical record (kept as of the 2026-06-18 approval).** The
+> shipped system has since diverged from this v1 design and this document is not
+> a description of the current architecture. In production today the read layer
+> is a **Next.js app** (`web-next/`) with route-handler APIs and a **MapLibre GL**
+> map — not the FastAPI `api/` (uvicorn) service or the vanilla-JS/Leaflet `web/`
+> frontend described below; deals are stored in **Turso (libSQL)** with a local
+> SQLite fallback; the default geocoder is the **keyless US Census** service
+> (Nominatim is retained for local use only); and the scheduled scrape runs on
+> **GitHub Actions** every 12 hours rather than via MeshClaw. For the current
+> architecture and operations see [README.md](../../../README.md) and
+> [docs/DEPLOY.md](../../DEPLOY.md).
+
 ## 1. Overview
 
 A web app that surfaces free and BOGO (buy-one-get-one) deals. Physical/in-store

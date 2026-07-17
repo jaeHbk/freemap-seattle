@@ -1,6 +1,4 @@
-// Pure transform helpers — 1:1 ports of the Python read API (api/main.py +
-// scrapers/pipeline.py) and the node-tested JS helpers (web/filters.js, list.js,
-// map.js). No DB, no I/O, no framework. Every function here is total.
+// Pure read-path transforms. No DB, I/O, or framework dependencies.
 
 import type { Deal } from "./db";
 

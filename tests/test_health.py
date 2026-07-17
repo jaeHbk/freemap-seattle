@@ -7,7 +7,11 @@ rate-limit-prone Reddit is optional.
 """
 from datetime import datetime, timedelta
 
-from scrapers.health import evaluate_health, read_fresh_pin_counts
+from scrapers.health import (
+    evaluate_health,
+    format_report,
+    read_fresh_pin_counts,
+)
 from tests.conftest import FIXED_NOW
 
 EXPECTED = ["places_brand"]
@@ -74,6 +78,87 @@ def test_expected_source_with_required_map_pins_passes():
     )
 
     assert result["ok"] is True
+
+
+def test_expected_source_below_deal_coverage_floor_fails():
+    result = evaluate_health(
+        {"places_brand": _run(42)},
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
+        minimum_deals={"places_brand": 43},
+    )
+
+    assert result["ok"] is False
+    assert result["problems"][0]["reason"] == (
+        "found 42 deals (minimum: 43)"
+    )
+
+
+def test_expected_source_at_coverage_floors_passes():
+    result = evaluate_health(
+        {"places_brand": _run(43)},
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
+        minimum_deals={"places_brand": 43},
+    )
+
+    assert result["ok"] is True
+
+
+def test_expected_source_below_stored_coverage_floor_fails():
+    run = _run(43)
+    run["deals_upserted"] = 42
+    result = evaluate_health(
+        {"places_brand": run},
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
+        minimum_deals={"places_brand": 43},
+    )
+
+    assert result["ok"] is False
+    assert result["problems"][0]["reason"] == (
+        "upserted 42 deals (minimum: 43)"
+    )
+
+
+def test_health_report_includes_operational_telemetry():
+    latest = {
+        "places_brand": {
+            "deals_found": 43,
+            "deals_upserted": 43,
+            "map_pins": 39,
+            "geocode_failures": 4,
+            "duration_ms": 1250,
+            "errors": None,
+        }
+    }
+    result = evaluate_health(
+        latest,
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
+        minimum_deals={"places_brand": 43},
+    )
+
+    report = format_report(
+        result,
+        latest,
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
+    )
+
+    assert "found=43 upserted=43 pins=39" in report
+    assert "geocode_failed=4 duration_ms=1250" in report
+    assert report.endswith("HEALTHY")
 
 
 def test_fresh_pin_query_excludes_old_failed_online_and_expired_rows(seeded_db):

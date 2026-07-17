@@ -26,8 +26,10 @@ export FREEMAP_REQUIRE_TURSO=1
 ./.venv/bin/python -m scripts.migrate_turso
 ```
 
-The migration is idempotent and verifies the remote schema with a read-back
-query. A successful run prints:
+The migration is idempotent, adds nullable deal-detail and scrape-telemetry
+columns introduced after the initial schema, and verifies the remote schema
+with a read-back query.
+A successful run prints:
 
 ```text
 Turso schema applied and verified (idempotent).
@@ -52,7 +54,8 @@ turso db shell freemap \
   "SELECT source, deal_type, COUNT(*) AS deals, \
    SUM(CASE WHEN lat IS NOT NULL AND lng IS NOT NULL THEN 1 ELSE 0 END) AS pins \
    FROM deals GROUP BY source, deal_type; \
-   SELECT source, deals_found, errors, finished_at \
+   SELECT source, deals_found, deals_upserted, map_pins, geocode_failures, \
+   duration_ms, errors, finished_at \
    FROM scrape_runs ORDER BY id DESC LIMIT 4;"
 ```
 
@@ -76,10 +79,23 @@ The health baseline is:
 
 - `expected = ["places_brand"]`
 - `optional = ["reddit"]`
-- `minimum_pins = { places_brand = 1 }`
+- `minimum_deals = { places_brand = 43 }`
+- `minimum_pins = { places_brand = 39 }`
 
-Health fails when the latest required run is missing, stale, errored, or found
-zero deals. It also fails when the current scrape produces no geocoded map pin.
+Health fails when the latest required run is missing, stale, errored, fetches or
+stores fewer than all 43 configured deals, or produces fewer than 39 current
+map pins.
+The `places_brand` source also fails closed when official terms have not been
+reverified within 30 days or an explicit `expires_at` has passed. Follow
+`TASK.md` to recheck terms and storefronts before the deadline.
+Every workflow run writes found/upserted/pin/geocode-failure/duration telemetry
+to its GitHub Actions summary.
+
+On failure, the workflow opens or updates the single issue
+`[FreeMap] Scheduled scrape unhealthy` with the latest run link. Repeated
+failures update that issue rather than creating duplicates. The next successful
+run records its recovery link and closes the issue. Workflow failure email or
+watch notifications remain available through normal GitHub settings.
 
 ## 4. Deploy Vercel
 
@@ -132,7 +148,8 @@ Inspect recent source health:
 
 ```bash
 turso db shell freemap \
-  "SELECT source, finished_at, deals_found, errors \
+  "SELECT source, finished_at, deals_found, deals_upserted, map_pins, \
+   geocode_failures, duration_ms, errors \
    FROM scrape_runs ORDER BY id DESC LIMIT 10;"
 ```
 

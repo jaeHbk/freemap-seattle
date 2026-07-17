@@ -78,6 +78,10 @@ def test_category_retail():
     assert classify(_raw(title="Free shoes at the store")).category == "retail"
 
 
+def test_category_retail_beauty():
+    assert classify(_raw(title="Free birthday beauty gift")).category == "retail"
+
+
 def test_category_other():
     assert classify(_raw(title="Free advice")).category == "other"
 

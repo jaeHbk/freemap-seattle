@@ -8,12 +8,15 @@ env — it never reads or embeds a token from anywhere else.
     python -m scripts.migrate_turso        # from repo root
     ./.venv/bin/python -m scripts.migrate_turso
 
-Local dev does NOT need this: scrapers/db.py creates the schema in db/deals.db
-on its own. This script exists only to provision the remote Turso DB once.
+Local dev does NOT need this: scrapers/db.py creates and upgrades the schema in
+db/deals.db on its own. This script also applies additive deal-detail and
+scrape-telemetry columns to an existing remote Turso database.
 """
 import os
 import sys
 from pathlib import Path
+
+from scrapers.db import ensure_schema_migrations
 
 # schema.sql is the committed source of truth, same file scrapers.db.init_db() runs.
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
@@ -43,6 +46,7 @@ def main() -> int:
             # no string literals with ';', so a naive split is safe here.
             for stmt in filter(str.strip, schema.split(";")):
                 conn.execute(stmt)
+        ensure_schema_migrations(conn)
         conn.commit()
         # Prove the schema actually reached the remote. executescript()+commit()
         # can buffer and return without error against an unreachable host / bad

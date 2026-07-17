@@ -66,6 +66,9 @@ def test_run_all_single_source_writes_rows(tmp_path, monkeypatch):
     assert set(summary.keys()) == {"reddit"}
     assert summary["reddit"]["deals_found"] == 3
     assert summary["reddit"]["upserted"] == 3
+    assert summary["reddit"]["map_pins"] == 1
+    assert summary["reddit"]["geocode_failures"] == 0
+    assert summary["reddit"]["duration_ms"] >= 0
     assert summary["reddit"]["errors"] is None
 
     rows = conn.execute(
@@ -91,12 +94,14 @@ def test_run_all_single_source_writes_rows(tmp_path, monkeypatch):
     assert bogo["placement"] == "online"
 
     # A scrape_runs row was recorded for the source.
-    run_rows = conn.execute(
-        "SELECT source, deals_found, errors FROM scrape_runs"
-    ).fetchall()
+    run_rows = conn.execute("SELECT * FROM scrape_runs").fetchall()
     assert len(run_rows) == 1
     assert run_rows[0]["source"] == "reddit"
     assert run_rows[0]["deals_found"] == 3
+    assert run_rows[0]["deals_upserted"] == 3
+    assert run_rows[0]["map_pins"] == 1
+    assert run_rows[0]["geocode_failures"] == 0
+    assert run_rows[0]["duration_ms"] >= 0
     assert run_rows[0]["errors"] is None
 
 

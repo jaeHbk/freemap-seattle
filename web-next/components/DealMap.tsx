@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import { Loader2, MapPinOff, TriangleAlert } from "lucide-react";
 import type { Deal } from "@/components/deals";
 import { TYPE_STYLE } from "@/components/deal-style";
+import type { SearchOrigin } from "@/lib/location";
+import type { MapViewport } from "@/lib/url-state";
 
 // MapLibre needs `window` and WebGL, so the map is loaded client-only.
 const DealMapInner = dynamic(() => import("@/components/DealMap.inner"), {
@@ -27,10 +29,25 @@ function LegendGlyph({ shape, color }: { shape: string; color: string }) {
 
 interface DealMapProps {
   deals: Deal[];
+  origin: SearchOrigin | null;
+  selectedDealId: string | null;
+  viewport: MapViewport | null;
+  onSelectDeal: (dealId: string) => void;
+  onViewDetails: (dealId: string) => void;
+  onViewportChange: (viewport: MapViewport) => void;
   onClearFilters?: () => void;
 }
 
-export function DealMap({ deals, onClearFilters }: DealMapProps) {
+export function DealMap({
+  deals,
+  origin,
+  selectedDealId,
+  viewport,
+  onSelectDeal,
+  onViewDetails,
+  onViewportChange,
+  onClearFilters,
+}: DealMapProps) {
   const [initializationError, setInitializationError] = React.useState<
     string | null
   >(null);
@@ -63,6 +80,12 @@ export function DealMap({ deals, onClearFilters }: DealMapProps) {
       ) : (
         <DealMapInner
           deals={deals}
+          origin={origin}
+          selectedDealId={selectedDealId}
+          viewport={viewport}
+          onSelectDeal={onSelectDeal}
+          onViewDetails={onViewDetails}
+          onViewportChange={onViewportChange}
           onInitializationError={handleInitializationError}
         />
       )}

@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  belongsInList,
   buildQuery,
   dealsForList,
   dealsForMap,
@@ -76,13 +75,7 @@ test("matchesFilters enforces status and selected values", () => {
   );
 });
 
-test("belongsInList keeps online and failed-geocode deals", () => {
-  assert.equal(belongsInList(mk({ placement: "online", geocode_status: "n/a" })), true);
-  assert.equal(belongsInList(mk({ placement: "physical", geocode_status: "failed" })), true);
-  assert.equal(belongsInList(mk({ placement: "physical", geocode_status: "ok" })), false);
-});
-
-test("map and list partition the active app payload", () => {
+test("map shows plottable deals while list shows every matching deal", () => {
   const seattlePin = mk({ id: 1, placement: "physical", geocode_status: "ok", lat: 47.62, lng: -122.32 });
   const offscreenPin = mk({ id: 2, placement: "physical", geocode_status: "ok", lat: 47.6, lng: -121 });
   const online = mk({ id: 3 });
@@ -93,5 +86,28 @@ test("map and list partition the active app payload", () => {
   // The app fetches its small map payload once. MapLibre clusters and culls
   // offscreen markers, while /api/deals?bbox= remains available for bounded clients.
   assert.deepEqual(dealsForMap(all, filters), [seattlePin, offscreenPin]);
-  assert.deepEqual(dealsForList(all, filters), [online, failedGeo]);
+  assert.deepEqual(dealsForList(all, filters), all);
+});
+
+test("list applies the same active filters as the map", () => {
+  const freePhysical = mk({
+    id: 1,
+    placement: "physical",
+    geocode_status: "ok",
+    lat: 47.62,
+    lng: -122.32,
+  });
+  const bogoOnline = mk({ id: 2, deal_type: "bogo" });
+  const staleFree = mk({ id: 3, status: "stale" });
+  const filters = {
+    type: "free",
+    category: "",
+    placement: "",
+    includeStale: false,
+  } as const;
+
+  assert.deepEqual(
+    dealsForList([freePhysical, bogoOnline, staleFree], filters),
+    [freePhysical],
+  );
 });

@@ -1,5 +1,16 @@
 # FreeMap Seattle Implementation Plan
 
+> **Superseded / historical record.** This is the completed v1 build plan from
+> 2026-06-18, kept as a point-in-time record; it does not describe the current
+> architecture. The shipped system replaced the read-only FastAPI/uvicorn `api/`
+> and vanilla-JS/Leaflet `web/` layers with a **Next.js app** (`web-next/`) using
+> route-handler APIs and a **MapLibre GL** map, moved production storage to
+> **Turso (libSQL)** (local SQLite is the fallback), made the **keyless US Census**
+> geocoder the default (Nominatim is local-only), and moved scheduling to
+> **GitHub Actions** (every 12 hours) instead of MeshClaw. See
+> [README.md](../../../README.md) and [docs/DEPLOY.md](../../DEPLOY.md) for the
+> current system.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build FreeMap Seattle v1 — a web app that scrapes free/BOGO deals, stores them in SQLite, and serves them read-only to anonymous visitors as a Leaflet map (physical deals) plus a list (online + failed-geocode physical deals).

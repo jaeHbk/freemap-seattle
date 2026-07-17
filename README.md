@@ -1,8 +1,8 @@
 # FreeMap Seattle
 
-FreeMap surfaces free and buy-one-get-one (BOGO) offers in Seattle. Geocoded
-physical offers appear on an interactive map; online offers and physical offers
-that could not be geocoded appear in a list.
+FreeMap surfaces free and buy-one-get-one (BOGO) offers in Seattle. Every
+matching offer appears in the list, while geocoded physical offers also appear
+on an interactive map.
 
 ## Production architecture
 
@@ -20,8 +20,12 @@ GitHub Actions (12h cron) --writes--> Turso <--reads-- Next.js on Vercel
 - `.github/workflows/scrape.yml` runs the scraper and health gate every 12 hours.
   `FREEMAP_REQUIRE_TURSO=1` prevents a missing secret from silently writing to
   an ephemeral runner database.
-- The health gate requires at least one pin touched by the current
-  `places_brand` scrape, so a geocoder outage cannot report a healthy empty map.
+- Each source run records found/upserted counts, mapped pins, geocode failures,
+  duration, completion time, and error status.
+- The health gate requires all 43 verified `places_brand` deals and at least 39
+  current map pins. A partial source or geocoder regression cannot stay green.
+- A failed scheduled scrape opens or updates one GitHub issue; the next healthy
+  run comments on and closes it.
 
 The scraper and web app communicate only through the database.
 
@@ -31,7 +35,7 @@ The scraper and web app communicate only through the database.
 
 | Source | Production role | Health policy |
 |---|---|---|
-| `places_brand` | Official Chipotle Rewards and MOD Sunday offers expanded to current Seattle storefront pins | Required |
+| `places_brand` | Official Chipotle, MOD, Starbucks, and Ulta Free/BOGO rewards expanded to current Seattle storefront pins | Required |
 | `reddit` | Free/BOGO posts from `r/Seattle`, filtered with word-boundary matching | Optional because runner IPs may be rate-limited |
 
 The `chains`, `slickdeals`, and `local` parsers remain implemented and tested,
@@ -69,17 +73,32 @@ The read API is available under the Next.js app:
 
 - `GET /api/deals?type=&category=&placement=&bbox=&include_stale=`
 - `GET /api/deals/{id}`
-- `GET /api/meta`
+- `GET /api/geocode?q=` for Seattle neighborhood and address lookup
+- `GET /api/meta` for current source counts, freshness, and latest-run telemetry
 
 `bbox` uses `minLng,minLat,maxLng,maxLat` and is pushed into SQL. The current UI
 loads the small map payload once and lets MapLibre cluster and cull offscreen
 markers, avoiding a request on every pan. Bounded API clients can use `bbox`.
+Users can search a Seattle neighborhood or address, or share browser location,
+to focus the map and sort the complete list by distance. The active view,
+filters, chosen location, open deal, and map position are mirrored to the URL,
+so a shared or bookmarked link restores that state and browser back/forward
+works.
 
 Freshness is computed at read time:
 
 - `expired`: hidden
 - `stale`: hidden unless `include_stale=true`
 - `active`: shown
+
+Verified brand rows also carry structured eligibility, redemption instructions,
+and verification dates. The list and map both open the same deal-detail drawer;
+community rows without structured terms link back to their source.
+
+Official brand terms fail closed after 30 days without human reverification.
+Malformed, future-dated, overdue, or explicitly expired terms stop the required
+source before it refreshes `last_seen`; prior rows then become stale and disappear
+within 24 hours. Date-only `expires_at` values remain valid through that full day.
 
 The keyless US Census geocoder is the default. Google is optional; public
 Nominatim is retained only for local experimentation because hosted requests
@@ -89,16 +108,17 @@ are commonly rejected.
 
 ```bash
 ./.venv/bin/pytest -q
-node --test web/*.test.js
 
 cd web-next
 npm test
 npm run lint
+npm run test:e2e
 npm run build
 ```
 
 Source tests use recorded fixtures and mocked HTTP calls. They do not depend on
-live websites.
+live websites. Playwright browser tests mock API and map-provider boundaries
+while exercising the real UI in Chromium.
 
 ## Deploy and operate
 
@@ -111,9 +131,7 @@ legacy scheduler teardown procedure is in [docs/DEPLOY.md](docs/DEPLOY.md).
 scrapers/       source adapters, scope rules, pipeline, Turso adapter, health
 scripts/        Turso schema migration
 db/schema.sql   committed database schema
-api/            legacy FastAPI read app kept for parity
 web-next/       production Next.js app
-web/            legacy vanilla frontend kept for parity
 tests/          Python unit and integration tests
 docs/           deployment and design documentation
 config.toml     source, geocoder, freshness, and health policy

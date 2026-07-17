@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS deals (
     title           TEXT NOT NULL,
     url             TEXT NOT NULL,
     description     TEXT,
+    eligibility     TEXT,
+    redemption      TEXT,
+    verified_at     TIMESTAMP,
     deal_type       TEXT NOT NULL,   -- "free" | "bogo" | "other"
     category        TEXT NOT NULL,   -- "food" | "retail" | "event" | "other"
     placement       TEXT NOT NULL,   -- "physical" | "online"
@@ -42,5 +45,9 @@ CREATE TABLE IF NOT EXISTS scrape_runs (
     started_at      TIMESTAMP,
     finished_at     TIMESTAMP,
     deals_found     INTEGER,
+    deals_upserted  INTEGER,
+    map_pins        INTEGER,
+    geocode_failures INTEGER,
+    duration_ms     INTEGER,
     errors          TEXT
 );

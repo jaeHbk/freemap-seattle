@@ -50,6 +50,9 @@ export type Deal = {
   title: string;
   url: string;
   description: string | null;
+  eligibility: string | null;
+  redemption: string | null;
+  verified_at: string | null;
   deal_type: "free" | "bogo" | "other";
   category: "food" | "retail" | "event" | "other";
   placement: "physical" | "online";
@@ -75,6 +78,9 @@ export function rowToDeal(row: Row): Deal {
     title: row.title as string,
     url: row.url as string,
     description: row.description as string | null,
+    eligibility: row.eligibility as string | null,
+    redemption: row.redemption as string | null,
+    verified_at: row.verified_at as string | null,
     deal_type: row.deal_type as Deal["deal_type"],
     category: row.category as Deal["category"],
     placement: row.placement as Deal["placement"],

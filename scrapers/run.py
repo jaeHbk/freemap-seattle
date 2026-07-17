@@ -13,7 +13,12 @@ from datetime import datetime
 
 from scrapers.config import Config, load_config
 from scrapers.contract import RawDeal
-from scrapers.db import connect, init_db, record_run
+from scrapers.db import (
+    collect_source_run_metrics,
+    connect,
+    init_db,
+    record_run,
+)
 from scrapers.geocoders import make_geocoder
 from scrapers.pipeline import run_pipeline
 from scrapers.sources import reddit, chains, slickdeals, local, places_brand
@@ -42,8 +47,8 @@ def run_all(
     inject a custom dict. For each source the fetch + run_pipeline are wrapped
     in try/except so one failing source never aborts the others.
 
-    Returns {source_name: {"deals_found": int, "upserted": int,
-                           "errors": str | None}}.
+    Returns one telemetry record per source with found/upserted/pin/geocode
+    counts, duration, and an optional error.
     """
     if sources is None:
         sources = {name: SOURCES[name] for name in config.sources_enabled}
@@ -60,18 +65,50 @@ def run_all(
             deals_found = len(raws)
             upserted = run_pipeline(raws, geocoder, conn, now)
             finished_at = datetime.now()
-            record_run(conn, name, started_at, finished_at, deals_found, None)
+            metrics = collect_source_run_metrics(conn, name, now)
+            duration_ms = max(
+                0, round((finished_at - started_at).total_seconds() * 1000)
+            )
+            record_run(
+                conn,
+                name,
+                started_at,
+                finished_at,
+                deals_found,
+                None,
+                deals_upserted=upserted,
+                map_pins=metrics["map_pins"],
+                geocode_failures=metrics["geocode_failures"],
+                duration_ms=duration_ms,
+            )
             summary[name] = {
                 "deals_found": deals_found,
                 "upserted": upserted,
+                "map_pins": metrics["map_pins"],
+                "geocode_failures": metrics["geocode_failures"],
+                "duration_ms": duration_ms,
                 "errors": None,
             }
         except Exception as e:  # noqa: BLE001 - isolate one source's failure
             finished_at = datetime.now()
-            record_run(conn, name, started_at, finished_at, 0, str(e))
+            duration_ms = max(
+                0, round((finished_at - started_at).total_seconds() * 1000)
+            )
+            record_run(
+                conn,
+                name,
+                started_at,
+                finished_at,
+                0,
+                str(e),
+                duration_ms=duration_ms,
+            )
             summary[name] = {
                 "deals_found": 0,
                 "upserted": 0,
+                "map_pins": 0,
+                "geocode_failures": 0,
+                "duration_ms": duration_ms,
                 "errors": str(e),
             }
     return summary
@@ -125,14 +162,23 @@ def main(argv=None) -> int:
         for name, result in summary.items():
             deals_found = result["deals_found"]
             upserted = result["upserted"]
+            map_pins = result["map_pins"]
+            geocode_failures = result["geocode_failures"]
+            duration_ms = result["duration_ms"]
             errors = result["errors"]
             if errors is None:
                 any_success = True
                 flag = " [0 FOUND]" if deals_found == 0 else ""
-                print(f"  {name}: found={deals_found} upserted={upserted} ok{flag}")
+                print(
+                    f"  {name}: found={deals_found} upserted={upserted} "
+                    f"pins={map_pins} geocode_failed={geocode_failures} "
+                    f"duration_ms={duration_ms} ok{flag}"
+                )
             else:
                 print(
-                    f"  {name}: found={deals_found} upserted={upserted} ERROR: {errors}"
+                    f"  {name}: found={deals_found} upserted={upserted} "
+                    f"pins={map_pins} geocode_failed={geocode_failures} "
+                    f"duration_ms={duration_ms} ERROR: {errors}"
                 )
 
         return 0 if any_success else 1

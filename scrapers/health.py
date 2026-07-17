@@ -2,9 +2,9 @@
 
 Reads the LATEST scrape_runs row per source and decides PASS/FAIL against the
 [health] baseline in config.toml: an EXPECTED source must have a latest run that
-neither errored nor found 0 deals. Sources in `minimum_pins` must also have that
-many freshly geocoded rows. OPTIONAL sources are reported but never alerted;
-Reddit is optional because a live runner IP can still be rate-limited.
+neither errored nor falls below its known deal and fresh-pin coverage floors.
+OPTIONAL sources are reported but never alerted; Reddit is optional because a
+live runner IP can still be rate-limited.
 
 Run as `python -m scrapers.health` (exit 0 = healthy, 1 = an expected source is
 unhealthy or missing). The decision core, evaluate_health(), is pure so it's
@@ -29,6 +29,7 @@ from scrapers.pipeline import _as_naive_utc
 _DEFAULT_EXPECTED = ["places_brand"]
 _DEFAULT_OPTIONAL = ["reddit"]
 _DEFAULT_MINIMUM_PINS = {"places_brand": 1}
+_DEFAULT_MINIMUM_DEALS = {"places_brand": 1}
 
 
 def _load_health_table(config_path: str) -> dict:
@@ -59,6 +60,17 @@ def load_minimum_pins(config_path: str) -> dict[str, int]:
     }
 
 
+def load_minimum_deals(config_path: str) -> dict[str, int]:
+    """Read per-source minimum fetched deal coverage from [health]."""
+    configured = _load_health_table(config_path).get(
+        "minimum_deals", _DEFAULT_MINIMUM_DEALS
+    )
+    return {
+        str(source): max(0, int(minimum))
+        for source, minimum in configured.items()
+    }
+
+
 def _is_stale(finished_at, now: datetime | None, max_age_hours: float | None) -> bool:
     """True if a run's finished_at is older than max_age_hours before now.
 
@@ -82,6 +94,7 @@ def evaluate_health(
     max_age_hours: float | None = None,
     pin_counts: dict[str, int] | None = None,
     minimum_pins: dict[str, int] | None = None,
+    minimum_deals: dict[str, int] | None = None,
 ) -> dict:
     """Decide health from the latest run per source. PURE — no DB, no I/O.
 
@@ -95,11 +108,12 @@ def evaluate_health(
       source that didn't run this cycle inherits a prior healthy row.
 
     An expected source is a problem when its latest run is MISSING, STALE,
-    errored, found 0 deals, or misses its fresh-pin minimum. Returns
+    errored, or misses its fetched-deal or fresh-pin minimum. Returns
     {"ok": bool, "problems": [...]}.
     """
     pin_counts = pin_counts or {}
     minimum_pins = minimum_pins or {}
+    minimum_deals = minimum_deals or {}
     problems = []
     for source in expected:
         run = latest_by_source.get(source)
@@ -126,6 +140,32 @@ def evaluate_health(
                 {"source": source, "reason": "found 0 deals", "deals_found": found,
                  "errors": None}
             )
+        elif found < minimum_deals.get(source, 0):
+            required = minimum_deals[source]
+            problems.append(
+                {
+                    "source": source,
+                    "reason": f"found {found} deals (minimum: {required})",
+                    "deals_found": found,
+                    "errors": None,
+                }
+            )
+        elif (
+            run.get("deals_upserted") is not None
+            and run["deals_upserted"] < minimum_deals.get(source, 0)
+        ):
+            upserted = run["deals_upserted"]
+            required = minimum_deals[source]
+            problems.append(
+                {
+                    "source": source,
+                    "reason": (
+                        f"upserted {upserted} deals (minimum: {required})"
+                    ),
+                    "deals_found": found,
+                    "errors": None,
+                }
+            )
         elif pin_counts.get(source, 0) < minimum_pins.get(source, 0):
             pins = pin_counts.get(source, 0)
             required = minimum_pins[source]
@@ -151,7 +191,11 @@ def read_latest_runs(conn) -> dict[str, dict]:
     rows = conn.execute(
         """
         SELECT s.source AS source, s.deals_found AS deals_found, s.errors AS errors,
-               s.finished_at AS finished_at
+               s.finished_at AS finished_at,
+               s.deals_upserted AS deals_upserted,
+               s.map_pins AS map_pins,
+               s.geocode_failures AS geocode_failures,
+               s.duration_ms AS duration_ms
         FROM scrape_runs s
         JOIN (SELECT source, MAX(id) AS mid FROM scrape_runs GROUP BY source) m
           ON s.source = m.source AND s.id = m.mid
@@ -162,6 +206,10 @@ def read_latest_runs(conn) -> dict[str, dict]:
             "deals_found": r["deals_found"],
             "errors": r["errors"],
             "finished_at": r["finished_at"],
+            "deals_upserted": r["deals_upserted"],
+            "map_pins": r["map_pins"],
+            "geocode_failures": r["geocode_failures"],
+            "duration_ms": r["duration_ms"],
         }
         for r in rows
     }
@@ -210,17 +258,32 @@ def format_report(
         if prob is not None:
             lines.append(f"  [FAIL] {source}: {prob['reason']}")
         else:
-            pin_detail = (
-                f" pins={pin_counts.get(source, 0)}"
-                if source in minimum_pins
-                else ""
-            )
+            metrics = [f"found={run['deals_found']}"]
+            if run.get("deals_upserted") is not None:
+                metrics.append(f"upserted={run['deals_upserted']}")
+            pins = pin_counts.get(source, run.get("map_pins"))
+            if pins is not None:
+                metrics.append(f"pins={pins}")
+            if run.get("geocode_failures") is not None:
+                metrics.append(
+                    f"geocode_failed={run['geocode_failures']}"
+                )
+            if run.get("duration_ms") is not None:
+                metrics.append(f"duration_ms={run['duration_ms']}")
             lines.append(
-                f"  [ok]   {source}: found={run['deals_found']}{pin_detail}"
+                f"  [ok]   {source}: {' '.join(metrics)}"
             )
     for source in optional:
         run = latest_by_source.get(source)
-        detail = "no row" if run is None else f"found={run.get('deals_found')}"
+        if run is None:
+            detail = "no row"
+        else:
+            status = "error" if run.get("errors") is not None else "ok"
+            detail = (
+                f"found={run.get('deals_found')} "
+                f"upserted={run.get('deals_upserted')} "
+                f"pins={run.get('map_pins')} status={status}"
+            )
         lines.append(f"  [opt]  {source}: {detail} (optional, not alerting)")
     lines.append("HEALTHY" if result["ok"] else "UNHEALTHY")
     return "\n".join(lines)
@@ -246,6 +309,7 @@ def main(argv=None) -> int:
     config = load_config(args.config)
     expected, optional = load_health_baseline(args.config)
     minimum_pins = load_minimum_pins(args.config)
+    minimum_deals = load_minimum_deals(args.config)
 
     # A source scrapes ~every cycle; allow ~2 freshness windows before alarming on
     # staleness (24h default -> 48h), so one delayed/missed run doesn't false-alert
@@ -275,6 +339,7 @@ def main(argv=None) -> int:
         max_age_hours=max_age,
         pin_counts=pin_counts,
         minimum_pins=minimum_pins,
+        minimum_deals=minimum_deals,
     )
     print(
         format_report(

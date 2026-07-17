@@ -68,12 +68,7 @@ def seeded_db(tmp_path):
       id=7  active physical food/free      in-bbox, SAME dedup_key as id=1 (alt url)
     """
     db_file = tmp_path / "deals.db"
-    # NOTE: open with check_same_thread=False (mirroring scrapers.db.connect's
-    # row_factory) because FastAPI's TestClient dispatches endpoint handlers on a
-    # threadpool worker thread while this connection is created on the test thread.
-    # Reusing one open connection (as the API tests' _override_conn requires)
-    # otherwise raises sqlite3.ProgrammingError ("created in a thread ..."). This is
-    # a test-only accommodation; production code path is untouched.
+    # Allow shared fixture reads from tests that may execute on another thread.
     conn = sqlite3.connect(str(db_file), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     init_db(conn)

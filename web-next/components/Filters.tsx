@@ -31,11 +31,12 @@ const PLACEMENT_OPTS = [
 interface FiltersProps {
   state: FilterState;
   onChange: (next: FilterState) => void;
+  idPrefix: string;
   /** number of deals currently visible (for the live count line) */
   count?: number;
 }
 
-export function Filters({ state, onChange, count }: FiltersProps) {
+export function Filters({ state, onChange, idPrefix, count }: FiltersProps) {
   const set = <K extends keyof FilterState>(key: K, value: FilterState[K]) =>
     onChange({ ...state, [key]: value });
 
@@ -48,7 +49,7 @@ export function Filters({ state, onChange, count }: FiltersProps) {
   return (
     <div className="flex flex-col gap-6">
       <FieldSelect
-        id="filter-type"
+        id={`${idPrefix}-filter-type`}
         label="Deal type"
         icon={<Gift className="size-3.5" />}
         value={state.type}
@@ -56,7 +57,7 @@ export function Filters({ state, onChange, count }: FiltersProps) {
         options={TYPE_OPTS}
       />
       <FieldSelect
-        id="filter-category"
+        id={`${idPrefix}-filter-category`}
         label="Category"
         icon={<Tag className="size-3.5" />}
         value={state.category}
@@ -64,7 +65,7 @@ export function Filters({ state, onChange, count }: FiltersProps) {
         options={CATEGORY_OPTS}
       />
       <FieldSelect
-        id="filter-placement"
+        id={`${idPrefix}-filter-placement`}
         label="Where"
         icon={<MapPin className="size-3.5" />}
         value={state.placement}
@@ -80,7 +81,7 @@ export function Filters({ state, onChange, count }: FiltersProps) {
           Freshness
         </span>
         <Toggle
-          id="filter-stale"
+          id={`${idPrefix}-filter-stale`}
           label="Show stale deals"
           checked={state.includeStale}
           onCheckedChange={(c) => set("includeStale", c)}
