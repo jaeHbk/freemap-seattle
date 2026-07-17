@@ -80,7 +80,10 @@ The read API is available under the Next.js app:
 loads the small map payload once and lets MapLibre cluster and cull offscreen
 markers, avoiding a request on every pan. Bounded API clients can use `bbox`.
 Users can search a Seattle neighborhood or address, or share browser location,
-to focus the map and sort the complete list by distance.
+to focus the map and sort the complete list by distance. The active view,
+filters, chosen location, open deal, and map position are mirrored to the URL,
+so a shared or bookmarked link restores that state and browser back/forward
+works.
 
 Freshness is computed at read time:
 

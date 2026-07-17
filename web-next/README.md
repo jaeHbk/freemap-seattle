@@ -26,6 +26,7 @@ used only after the user chooses **Near me**.
 ```bash
 npm test
 npm run lint
+npm run test:e2e
 npm run build
 ```
 
