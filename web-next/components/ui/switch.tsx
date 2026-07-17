@@ -9,20 +9,31 @@ interface ToggleProps {
   onCheckedChange: (checked: boolean) => void;
   label: string;
   id?: string;
+  disabled?: boolean;
 }
 
 // Labelled switch on @base-ui primitives. The whole row is a label so the hit
 // target includes the text; the track respects prefers-reduced-motion.
-export function Toggle({ checked, onCheckedChange, label, id }: ToggleProps) {
+export function Toggle({
+  checked,
+  onCheckedChange,
+  label,
+  id,
+  disabled = false,
+}: ToggleProps) {
   return (
     <label
       htmlFor={id}
-      className="flex cursor-pointer items-center justify-between gap-3 text-sm font-medium text-foreground"
+      className={cn(
+        "flex items-center justify-between gap-3 text-sm font-medium text-foreground",
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+      )}
     >
       {label}
       <BaseSwitch.Root
         id={id}
         checked={checked}
+        disabled={disabled}
         onCheckedChange={(c) => onCheckedChange(c)}
         className={cn(
           "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border bg-muted transition-colors",

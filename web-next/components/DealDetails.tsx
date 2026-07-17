@@ -6,6 +6,7 @@ import {
   CalendarClock,
   Database,
   ExternalLink,
+  Heart,
   MapPinned,
   ShieldCheck,
   TicketCheck,
@@ -61,14 +62,18 @@ function DetailSection({
 interface DealDetailsProps {
   deal: Deal | null;
   open: boolean;
+  favorite: boolean;
   onOpenChange: (open: boolean) => void;
+  onToggleFavorite: (deal: Deal) => void;
   onShowOnMap: (dealId: string) => void;
 }
 
 export function DealDetails({
   deal,
   open,
+  favorite,
   onOpenChange,
+  onToggleFavorite,
   onShowOnMap,
 }: DealDetailsProps) {
   if (!deal) return null;
@@ -102,12 +107,37 @@ export function DealDetails({
             <p className="text-xs font-semibold uppercase text-muted-foreground">
               Deal details
             </p>
-            <Drawer.Close
-              className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="Close deal details"
-            >
-              <X className="size-4" />
-            </Drawer.Close>
+            <span className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => onToggleFavorite(deal)}
+                aria-label={`${favorite ? "Remove" : "Add"} ${deal.title} ${
+                  favorite ? "from" : "to"
+                } favorites`}
+                aria-pressed={favorite}
+                title={
+                  favorite ? "Remove from favorites" : "Add to favorites"
+                }
+                className={cn(
+                  "flex size-9 items-center justify-center rounded-lg transition-colors",
+                  favorite
+                    ? "bg-primary/10 text-primary hover:bg-primary/20"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                )}
+              >
+                <Heart
+                  className="size-4"
+                  fill={favorite ? "currentColor" : "none"}
+                />
+              </button>
+              <Drawer.Close
+                className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Close deal details"
+              >
+                <X className="size-4" />
+              </Drawer.Close>
+            </span>
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 pb-8">

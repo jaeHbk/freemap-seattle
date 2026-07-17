@@ -92,6 +92,17 @@ const STALE_DEAL: Deal = {
   status: "stale",
 };
 
+const NEW_NEARBY_DEAL: Deal = {
+  ...ACTIVE_DEALS[0],
+  id: 105,
+  source_id: "new-105",
+  dedup_key: "new-nearby",
+  title: "Free neighborhood pastry",
+  lat: 47.6687,
+  lng: -122.386,
+  raw_location: "Ballard, Seattle",
+};
+
 const TEST_STYLE = {
   version: 8 as const,
   name: "FreeMap test style",
@@ -279,6 +290,117 @@ test("details drawer hydrates a deep-linked deal outside the default payload", a
   await expect
     .poll(() => new URL(page.url()).searchParams.get("map"))
     .toMatch(/^47\.651,-122\.3504,/);
+});
+
+test("favorites persist locally and filter the deal views", async ({ page }) => {
+  await page.goto("/?view=list");
+
+  const coffee = page.locator('[data-deal-id="101"]');
+  await coffee
+    .getByRole("button", {
+      name: "Add Free birthday coffee to favorites",
+    })
+    .click();
+  await expect(
+    coffee.getByRole("button", {
+      name: "Remove Free birthday coffee from favorites",
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  await page.reload();
+  await page.getByRole("button", { name: "Show favorites only" }).click();
+  await expect(page.locator("[data-deal-id]")).toHaveCount(1);
+  await expect(page.locator('[data-deal-id="101"]')).toBeVisible();
+
+  await page
+    .locator('[data-deal-id="101"]')
+    .getByRole("button", { name: "Details" })
+    .click();
+  const details = page.getByRole("dialog", { name: "Free birthday coffee" });
+  await expect(
+    details.getByRole("button", {
+      name: "Remove Free birthday coffee from favorites",
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("alerts baseline existing deals and notify for a later nearby deal", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const notifications: Array<{ title: string; body?: string }> = [];
+    Object.defineProperty(window, "__freemapNotifications", {
+      value: notifications,
+    });
+    class MockNotification {
+      static permission: NotificationPermission = "granted";
+
+      static async requestPermission(): Promise<NotificationPermission> {
+        return "granted";
+      }
+
+      constructor(title: string, options?: NotificationOptions) {
+        notifications.push({ title, body: options?.body });
+      }
+    }
+    Object.defineProperty(window, "Notification", {
+      configurable: true,
+      value: MockNotification,
+    });
+  });
+
+  let currentFeed = [...ACTIVE_DEALS];
+  await page.route(/\/api\/deals$/, (route) =>
+    route.fulfill({ json: currentFeed }),
+  );
+  await page.goto("/?view=list");
+
+  await page
+    .getByLabel("Search by Seattle neighborhood or address")
+    .fill("Ballard");
+  await page.getByRole("button", { name: "Search location" }).click();
+  await page.getByRole("button", { name: "Open deal alerts" }).click();
+
+  const alerts = page.getByRole("dialog", { name: "Deal alerts" });
+  const alertSwitch = alerts.getByRole("switch", {
+    name: "Nearby deal alerts",
+  });
+  await alertSwitch.click();
+  await expect(alertSwitch).toBeChecked();
+  await expect(alerts.getByRole("button", { name: "Check now" })).toBeEnabled();
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as unknown as {
+            __freemapNotifications: unknown[];
+          }
+        ).__freemapNotifications.length,
+    ),
+  ).toBe(0);
+
+  currentFeed = [...ACTIVE_DEALS, NEW_NEARBY_DEAL];
+  await alerts.getByRole("button", { name: "Check now" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as {
+              __freemapNotifications: Array<{
+                title: string;
+                body?: string;
+              }>;
+            }
+          ).__freemapNotifications,
+      ),
+    )
+    .toEqual([
+      {
+        title: "1 new nearby deal",
+        body: "Free neighborhood pastry",
+      },
+    ]);
 });
 
 test("map, selected deal, location, distance order, and camera stay synchronized", async ({

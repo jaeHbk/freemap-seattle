@@ -11,6 +11,7 @@ import {
   MapPinned,
   MapPinOff,
   SearchX,
+  Heart,
 } from "lucide-react";
 import {
   TextureCard,
@@ -24,6 +25,7 @@ import {
   dealDistanceMiles,
   type SearchOrigin,
 } from "@/lib/location";
+import { dealPreferenceKey } from "@/lib/deal-preferences";
 
 function locationPresentation(deal: Deal) {
   if (deal.placement === "online") {
@@ -72,7 +74,9 @@ interface DealCardProps {
   reduce: boolean | null;
   origin: SearchOrigin | null;
   selected: boolean;
+  favorite: boolean;
   onSelectDeal: (dealId: string) => void;
+  onToggleFavorite: (deal: Deal) => void;
   onShowOnMap: (dealId: string) => void;
   onViewDetails: (dealId: string) => void;
 }
@@ -83,7 +87,9 @@ function DealCard({
   reduce,
   origin,
   selected,
+  favorite,
   onSelectDeal,
+  onToggleFavorite,
   onShowOnMap,
   onViewDetails,
 }: DealCardProps) {
@@ -123,9 +129,30 @@ function DealCard({
             <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize text-muted-foreground">
               {deal.category}
             </span>
+            <button
+              type="button"
+              onClick={() => onToggleFavorite(deal)}
+              aria-label={`${favorite ? "Remove" : "Add"} ${deal.title} ${
+                favorite ? "from" : "to"
+              } favorites`}
+              aria-pressed={favorite}
+              title={favorite ? "Remove from favorites" : "Add to favorites"}
+              className={cn(
+                "ml-auto flex size-8 items-center justify-center rounded-lg transition-colors",
+                favorite
+                  ? "bg-primary/10 text-primary hover:bg-primary/20"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+            >
+              <Heart
+                className="size-4"
+                fill={favorite ? "currentColor" : "none"}
+              />
+            </button>
             <span
               className={cn(
-                "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-medium",
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-medium",
                 stale
                   ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
                   : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
@@ -213,7 +240,9 @@ interface DealListProps {
   deals: Deal[];
   origin: SearchOrigin | null;
   selectedDealId: string | null;
+  favoriteDealKeys: ReadonlySet<string>;
   onSelectDeal: (dealId: string) => void;
+  onToggleFavorite: (deal: Deal) => void;
   onShowOnMap: (dealId: string) => void;
   onViewDetails: (dealId: string) => void;
   onClearFilters: () => void;
@@ -223,7 +252,9 @@ export function DealList({
   deals,
   origin,
   selectedDealId,
+  favoriteDealKeys,
   onSelectDeal,
+  onToggleFavorite,
   onShowOnMap,
   onViewDetails,
   onClearFilters,
@@ -279,7 +310,9 @@ export function DealList({
           reduce={reduce}
           origin={origin}
           selected={String(d.id) === selectedDealId}
+          favorite={favoriteDealKeys.has(dealPreferenceKey(d))}
           onSelectDeal={onSelectDeal}
+          onToggleFavorite={onToggleFavorite}
           onShowOnMap={onShowOnMap}
           onViewDetails={onViewDetails}
         />

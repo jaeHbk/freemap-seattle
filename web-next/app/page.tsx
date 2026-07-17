@@ -3,6 +3,8 @@
 import * as React from "react";
 import { Drawer } from "@base-ui/react/drawer";
 import {
+  Bell,
+  Heart,
   MapPinned,
   SlidersHorizontal,
   X,
@@ -14,6 +16,10 @@ import {
 import Link from "next/link";
 
 import { Filters } from "@/components/Filters";
+import {
+  DealAlerts,
+  type AlertPermission,
+} from "@/components/DealAlerts";
 import { DealDetails } from "@/components/DealDetails";
 import { DealList } from "@/components/DealList";
 import { DealMap } from "@/components/DealMap";
@@ -26,6 +32,19 @@ import {
   EMPTY_FILTERS,
 } from "@/components/deals";
 import type { Deal, FilterState } from "@/components/deals";
+import {
+  ALERTS_STORAGE_KEY,
+  DEFAULT_ALERT_PREFERENCES,
+  FAVORITES_STORAGE_KEY,
+  dealPreferenceKey,
+  mergeSeenDealKeys,
+  parseAlertPreferences,
+  parseFavoriteKeys,
+  serializeAlertPreferences,
+  serializeFavoriteKeys,
+  unseenNearbyDeals,
+  type AlertPreferences,
+} from "@/lib/deal-preferences";
 import {
   sortDealsByDistance,
   type SearchOrigin,
@@ -47,6 +66,15 @@ interface MetaSource {
   last_successful_scrape?: string | null;
 }
 
+const ALERT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+
+async function fetchUnfilteredDeals(): Promise<Deal[]> {
+  const response = await fetch("/api/deals");
+  if (!response.ok) throw new Error(`Server responded ${response.status}`);
+  const data: unknown = await response.json();
+  return Array.isArray(data) ? (data as Deal[]) : [];
+}
+
 export default function Home() {
   const [filters, setFilters] = React.useState<FilterState>(EMPTY_FILTERS);
   const [view, setView] = React.useState<ViewValue>("map");
@@ -65,6 +93,22 @@ export default function Home() {
   );
   const [urlReady, setUrlReady] = React.useState(false);
   const [fetchedDeal, setFetchedDeal] = React.useState<Deal | null>(null);
+  const [favoriteDealKeys, setFavoriteDealKeys] = React.useState<Set<string>>(
+    new Set(),
+  );
+  const [favoritesOnly, setFavoritesOnly] = React.useState(false);
+  const [preferencesReady, setPreferencesReady] = React.useState(false);
+  const [alertsOpen, setAlertsOpen] = React.useState(false);
+  const [alertPreferences, setAlertPreferences] =
+    React.useState<AlertPreferences>({
+      ...DEFAULT_ALERT_PREFERENCES,
+      seenDealKeys: [],
+    });
+  const [alertPermission, setAlertPermission] =
+    React.useState<AlertPermission>("default");
+  const [alertPending, setAlertPending] = React.useState(false);
+  const [alertError, setAlertError] = React.useState<string | null>(null);
+  const automaticAlertCheckStarted = React.useRef(false);
 
   const applyUrlState = React.useCallback((next: AppUrlState) => {
     setView(next.view);
@@ -163,6 +207,52 @@ export default function Home() {
     return () => ctrl.abort();
   }, []);
 
+  React.useEffect(() => {
+    const permission: AlertPermission =
+      "Notification" in window
+        ? Notification.permission
+        : "unsupported";
+    let storedFavorites: string | null = null;
+    let storedAlerts: string | null = null;
+    try {
+      storedFavorites = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+      storedAlerts = window.localStorage.getItem(ALERTS_STORAGE_KEY);
+    } catch {
+      // Use defaults when browser storage is unavailable.
+    }
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setFavoriteDealKeys(parseFavoriteKeys(storedFavorites));
+    setAlertPreferences(parseAlertPreferences(storedAlerts));
+    setAlertPermission(permission);
+    setPreferencesReady(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  React.useEffect(() => {
+    if (!preferencesReady) return;
+    try {
+      window.localStorage.setItem(
+        FAVORITES_STORAGE_KEY,
+        serializeFavoriteKeys(favoriteDealKeys),
+      );
+    } catch {
+      // Storage can be unavailable in private browsing; favorites still work
+      // for the current page session.
+    }
+  }, [favoriteDealKeys, preferencesReady]);
+
+  React.useEffect(() => {
+    if (!preferencesReady) return;
+    try {
+      window.localStorage.setItem(
+        ALERTS_STORAGE_KEY,
+        serializeAlertPreferences(alertPreferences),
+      );
+    } catch {
+      // Keep in-memory alert settings when browser storage is unavailable.
+    }
+  }, [alertPreferences, preferencesReady]);
+
   const inMemoryDeal =
     deals.find((deal) => String(deal.id) === selectedDealId) ?? null;
 
@@ -193,14 +283,34 @@ export default function Home() {
     return () => ctrl.abort();
   }, [detailsOpen, selectedDealId, state.kind, inMemoryDeal]);
 
-  const mapDeals = React.useMemo(() => dealsForMap(deals, filters), [deals, filters]);
+  const preferenceFilteredDeals = React.useMemo(
+    () =>
+      favoritesOnly
+        ? deals.filter((deal) =>
+            favoriteDealKeys.has(dealPreferenceKey(deal)),
+          )
+        : deals,
+    [deals, favoriteDealKeys, favoritesOnly],
+  );
+  const mapDeals = React.useMemo(
+    () => dealsForMap(preferenceFilteredDeals, filters),
+    [preferenceFilteredDeals, filters],
+  );
   const listDeals = React.useMemo(
-    () => sortDealsByDistance(dealsForList(deals, filters), origin),
-    [deals, filters, origin],
+    () =>
+      sortDealsByDistance(
+        dealsForList(preferenceFilteredDeals, filters),
+        origin,
+      ),
+    [preferenceFilteredDeals, filters, origin],
   );
   const visibleCount = view === "map" ? mapDeals.length : listDeals.length;
   const hasActiveFilters = Boolean(
-    filters.type || filters.category || filters.placement || filters.includeStale,
+    filters.type ||
+      filters.category ||
+      filters.placement ||
+      filters.includeStale ||
+      favoritesOnly,
   );
   const selectedDeal =
     inMemoryDeal ??
@@ -208,7 +318,19 @@ export default function Home() {
       ? fetchedDeal
       : null);
 
-  const clearFilters = React.useCallback(() => setFilters(EMPTY_FILTERS), []);
+  const clearFilters = React.useCallback(() => {
+    setFilters(EMPTY_FILTERS);
+    setFavoritesOnly(false);
+  }, []);
+  const toggleFavorite = React.useCallback((deal: Deal) => {
+    const key = dealPreferenceKey(deal);
+    setFavoriteDealKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
   const selectDeal = React.useCallback(
     (dealId: string) => setSelectedDealId(dealId),
     [],
@@ -260,6 +382,143 @@ export default function Home() {
     });
   }, []);
 
+  const checkForNewDeals = React.useCallback(async () => {
+    if (!origin) {
+      setAlertError("Choose a Seattle location before checking for deals.");
+      return;
+    }
+    if (
+      alertPermission !== "granted" ||
+      !("Notification" in window)
+    ) {
+      setAlertError("Browser notification permission is required.");
+      return;
+    }
+
+    setAlertPending(true);
+    setAlertError(null);
+    try {
+      const currentDeals = await fetchUnfilteredDeals();
+      const unseen = unseenNearbyDeals(
+        currentDeals,
+        alertPreferences.seenDealKeys,
+        origin,
+        alertPreferences.radiusMiles,
+      );
+      if (unseen.length > 0) {
+        const body =
+          unseen.length === 1
+            ? unseen[0].title
+            : `${unseen[0].title} and ${unseen.length - 1} more`;
+        try {
+          new Notification(
+            `${unseen.length} new nearby ${
+              unseen.length === 1 ? "deal" : "deals"
+            }`,
+            { body },
+          );
+        } catch {
+          setAlertError("The browser could not display the notification.");
+        }
+      }
+      setAlertPreferences((current) => ({
+        ...current,
+        seenDealKeys: mergeSeenDealKeys(
+          current.seenDealKeys,
+          currentDeals,
+        ),
+      }));
+    } catch (error) {
+      setAlertError(
+        error instanceof Error ? error.message : "Could not check for deals.",
+      );
+    } finally {
+      setAlertPending(false);
+    }
+  }, [
+    alertPermission,
+    alertPreferences.radiusMiles,
+    alertPreferences.seenDealKeys,
+    origin,
+  ]);
+
+  const changeAlertsEnabled = React.useCallback(
+    async (enabled: boolean) => {
+      if (!enabled) {
+        setAlertPreferences((current) => ({ ...current, enabled: false }));
+        setAlertError(null);
+        return;
+      }
+      if (!origin) {
+        setAlertError("Choose a Seattle location before enabling alerts.");
+        return;
+      }
+      if (!("Notification" in window)) {
+        setAlertPermission("unsupported");
+        setAlertError("Browser notifications are unavailable.");
+        return;
+      }
+
+      setAlertPending(true);
+      setAlertError(null);
+      try {
+        const permission =
+          Notification.permission === "default"
+            ? await Notification.requestPermission()
+            : Notification.permission;
+        setAlertPermission(permission);
+        if (permission !== "granted") {
+          setAlertError("Browser notification permission was not granted.");
+          return;
+        }
+
+        const baselineDeals = await fetchUnfilteredDeals();
+        automaticAlertCheckStarted.current = true;
+        setAlertPreferences((current) => ({
+          ...current,
+          enabled: true,
+          seenDealKeys: mergeSeenDealKeys(
+            current.seenDealKeys,
+            baselineDeals,
+          ),
+        }));
+      } catch (error) {
+        setAlertError(
+          error instanceof Error ? error.message : "Could not enable alerts.",
+        );
+      } finally {
+        setAlertPending(false);
+      }
+    },
+    [origin],
+  );
+
+  React.useEffect(() => {
+    if (
+      !preferencesReady ||
+      !alertPreferences.enabled ||
+      !origin ||
+      alertPermission !== "granted"
+    ) {
+      return;
+    }
+    if (!automaticAlertCheckStarted.current) {
+      automaticAlertCheckStarted.current = true;
+      void checkForNewDeals();
+    }
+    const interval = window.setInterval(
+      () => void checkForNewDeals(),
+      ALERT_CHECK_INTERVAL_MS,
+    );
+    return () => window.clearInterval(interval);
+  }, [
+    alertPermission,
+    alertPreferences.enabled,
+    checkForNewDeals,
+    origin,
+    preferencesReady,
+  ]);
+
   return (
     <div className="flex min-h-dvh flex-col">
       {/* Skip link — first focusable element, jumps keyboard users to content. */}
@@ -300,6 +559,52 @@ export default function Home() {
               mapCount={mapDeals.length}
               listCount={listDeals.length}
             />
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setFavoritesOnly((current) => !current)}
+              aria-label={
+                favoritesOnly ? "Show all deals" : "Show favorites only"
+              }
+              aria-pressed={favoritesOnly}
+              title={
+                favoritesOnly ? "Show all deals" : "Show favorites only"
+              }
+              className={cn(
+                "relative flex size-9 items-center justify-center rounded-lg border transition-colors",
+                favoritesOnly
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+            >
+              <Heart
+                className="size-4"
+                fill={favoritesOnly ? "currentColor" : "none"}
+              />
+              {favoriteDealKeys.size > 0 && (
+                <span className="absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.625rem] font-semibold leading-4 text-primary-foreground">
+                  {favoriteDealKeys.size}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAlertsOpen(true)}
+              aria-label="Open deal alerts"
+              title="Deal alerts"
+              className="relative flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Bell className="size-4" />
+              {alertPreferences.enabled && (
+                <span
+                  className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-background bg-emerald-500"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
           </div>
 
           <FreshnessBadge value={freshness} />
@@ -374,7 +679,9 @@ export default function Home() {
                 deals={listDeals}
                 origin={origin}
                 selectedDealId={selectedDealId}
+                favoriteDealKeys={favoriteDealKeys}
                 onSelectDeal={selectDeal}
+                onToggleFavorite={toggleFavorite}
                 onShowOnMap={showDealOnMap}
                 onViewDetails={viewDealDetails}
                 onClearFilters={clearFilters}
@@ -424,8 +731,32 @@ export default function Home() {
       <DealDetails
         deal={selectedDeal}
         open={detailsOpen}
+        favorite={
+          selectedDeal
+            ? favoriteDealKeys.has(dealPreferenceKey(selectedDeal))
+            : false
+        }
         onOpenChange={setDetailsOpen}
+        onToggleFavorite={toggleFavorite}
         onShowOnMap={showDealOnMap}
+      />
+      <DealAlerts
+        open={alertsOpen}
+        onOpenChange={setAlertsOpen}
+        enabled={alertPreferences.enabled}
+        radiusMiles={alertPreferences.radiusMiles}
+        origin={origin}
+        permission={alertPermission}
+        pending={alertPending}
+        error={alertError}
+        onEnabledChange={changeAlertsEnabled}
+        onRadiusChange={(radiusMiles) =>
+          setAlertPreferences((current) => ({
+            ...current,
+            radiusMiles,
+          }))
+        }
+        onCheckNow={checkForNewDeals}
       />
     </div>
   );
