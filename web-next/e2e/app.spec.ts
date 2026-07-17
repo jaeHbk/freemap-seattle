@@ -267,6 +267,18 @@ test("details drawer hydrates a deep-linked deal outside the default payload", a
   await expect(page.locator('[data-deal-id="104"]')).toHaveCount(0);
   expect(new URL(page.url()).searchParams.get("deal")).toBe("104");
   expect(new URL(page.url()).searchParams.get("details")).toBe("1");
+
+  // "Show on map" must recenter on the hydrated deal's own coordinates
+  // (47.651). Resolving only via the loaded payload — which excludes 104 —
+  // would leave the camera on the Seattle default (47.6062) and no-op.
+  await page.getByRole("button", { name: "Show on map" }).click();
+  await expect(page.locator("#tab-map")).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("map"))
+    .toMatch(/^47\.651,-122\.3504,/);
 });
 
 test("map, selected deal, location, distance order, and camera stay synchronized", async ({

@@ -215,7 +215,9 @@ export default function Home() {
   );
   const showDealOnMap = React.useCallback(
     (dealId: string) => {
-      const deal = deals.find((candidate) => String(candidate.id) === dealId);
+      const deal =
+        deals.find((candidate) => String(candidate.id) === dealId) ??
+        (fetchedDeal && String(fetchedDeal.id) === dealId ? fetchedDeal : null);
       if (deal?.lat != null && deal.lng != null) {
         const lat = deal.lat;
         const lng = deal.lng;
@@ -228,7 +230,7 @@ export default function Home() {
       setSelectedDealId(dealId);
       setView("map");
     },
-    [deals],
+    [deals, fetchedDeal],
   );
   const viewDealDetails = React.useCallback((dealId: string) => {
     setSelectedDealId(dealId);
