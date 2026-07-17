@@ -1,8 +1,10 @@
 import { query, rowToDeal, type Deal } from "@/lib/db";
 import {
+  parseIncludeStale,
+  selectDeals,
+} from "@/lib/api-contract";
+import {
   BboxError,
-  collapseDedup,
-  computeStatus,
   naiveLocalIso,
   parseBbox,
   type Bbox,
@@ -12,19 +14,14 @@ import {
 export const dynamic = "force-dynamic";
 
 // GET /api/deals?type=&category=&placement=&bbox=&include_stale=
-// 1:1 port of api/main.py list_deals: load deals (bbox -> SQL coord filter, else
-// all), compute status at read time, drop expired, drop stale unless
-// include_stale, apply equality filters, collapse dedup groups.
+// Load deals (bbox -> SQL coord filter, else all), compute status at read time,
+// apply equality filters, and collapse duplicate groups.
 export async function GET(request: Request) {
   const sp = new URL(request.url).searchParams;
   const type = sp.get("type");
   const category = sp.get("category");
   const placement = sp.get("placement");
-  // Match FastAPI bool query coercion (true/True/1/yes/on), not just literal "true",
-  // so a hand-built or non-app client can't silently get the non-stale set.
-  const includeStale = ["true", "1", "yes", "on"].includes(
-    (sp.get("include_stale") ?? "").toLowerCase(),
-  );
+  const includeStale = parseIncludeStale(sp.get("include_stale"));
 
   let bbox: Bbox | null;
   try {
@@ -55,21 +52,11 @@ export async function GET(request: Request) {
   // is true UTC epoch) — else the stale/expired boundary skews by the host's UTC
   // offset and deals are wrongly hidden. Build a naive-local ISO string.
   const now = naiveLocalIso();
-  const out: Deal[] = [];
-  for (const row of rows) {
-    const status = computeStatus(
-      row.expires_at as string | null,
-      row.last_seen as string | null,
+  return Response.json(
+    selectDeals(
+      rows.map(rowToDeal) as Deal[],
+      { type, category, placement, includeStale },
       now,
-    );
-    if (status === "expired") continue;
-    if (status === "stale" && !includeStale) continue;
-    const deal = rowToDeal(row);
-    deal.status = status;
-    if (type !== null && deal.deal_type !== type) continue;
-    if (category !== null && deal.category !== category) continue;
-    if (placement !== null && deal.placement !== placement) continue;
-    out.push(deal);
-  }
-  return Response.json(collapseDedup(out));
+    ),
+  );
 }

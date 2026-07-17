@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --experimental-strip-types components/deal-map-data.test.ts components/deals.test.ts lib/location.test.ts lib/transforms.test.ts lib/url-state.test.ts",
+    "test": "node --test --experimental-strip-types components/deal-map-data.test.ts components/deals.test.ts lib/api-contract.test.ts lib/location.test.ts lib/transforms.test.ts lib/url-state.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

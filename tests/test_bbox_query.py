@@ -1,21 +1,27 @@
-"""fetch_deals_in_bbox pushes the bbox into SQL. It MUST return exactly the rows
-the existing Python _in_bbox would keep for the same bbox — including excluding
-NULL-coord rows (id=5 online, id=6 failed geocode) — and order like fetch_all_deals
-(first_seen, id)."""
-from api.main import _in_bbox, _row_to_deal
+"""fetch_deals_in_bbox matches an in-memory inclusive coordinate check."""
 from scrapers.db import fetch_all_deals, fetch_deals_in_bbox
 
 # Seattle-ish bbox = (minLng, minLat, maxLng, maxLat). Excludes Bellevue (lng -121.0).
 BBOX = (-122.45, 47.50, -122.20, 47.75)
 
 
+def _in_bbox(row, bbox):
+    if row["lat"] is None or row["lng"] is None:
+        return False
+    min_lng, min_lat, max_lng, max_lat = bbox
+    return (
+        min_lng <= row["lng"] <= max_lng
+        and min_lat <= row["lat"] <= max_lat
+    )
+
+
 def test_bbox_sql_matches_in_bbox_on_seeded_rows(seeded_db):
     conn, _ = seeded_db
     sql_ids = [r["id"] for r in fetch_deals_in_bbox(conn, BBOX)]
     expected = [
-        _row_to_deal(r)["id"]
+        r["id"]
         for r in fetch_all_deals(conn)
-        if _in_bbox(_row_to_deal(r), BBOX)
+        if _in_bbox(r, BBOX)
     ]
     assert sql_ids == expected
 

@@ -38,9 +38,6 @@ jobs:
           cache: npm
           cache-dependency-path: web-next/package-lock.json
 
-      - name: Run legacy frontend tests
-        run: node --test web/*.test.js
-
       - name: Install Next.js dependencies
         working-directory: web-next
         run: npm ci

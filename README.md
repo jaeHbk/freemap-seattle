@@ -100,7 +100,6 @@ are commonly rejected.
 
 ```bash
 ./.venv/bin/pytest -q
-node --test web/*.test.js
 
 cd web-next
 npm test
@@ -124,9 +123,7 @@ legacy scheduler teardown procedure is in [docs/DEPLOY.md](docs/DEPLOY.md).
 scrapers/       source adapters, scope rules, pipeline, Turso adapter, health
 scripts/        Turso schema migration
 db/schema.sql   committed database schema
-api/            legacy FastAPI read app kept for parity
 web-next/       production Next.js app
-web/            legacy vanilla frontend kept for parity
 tests/          Python unit and integration tests
 docs/           deployment and design documentation
 config.toml     source, geocoder, freshness, and health policy

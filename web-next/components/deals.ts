@@ -1,6 +1,4 @@
-// Shared types + pure helpers for the FreeMap UI. The API lane owns the route
-// handlers; this file only encodes the documented response shape and the
-// presentation-side partition/guard logic ported 1:1 from the old web/*.js.
+// Shared response types and pure presentation helpers for the FreeMap UI.
 
 export type DealType = "free" | "bogo" | "other";
 export type Category = "food" | "retail" | "event" | "other";
@@ -53,7 +51,6 @@ export const SEATTLE_ZOOM = 12;
 
 // safeHttpUrl(u) -> u if it is an http(s) URL, else null. Deal data is scraped
 // from UNTRUSTED sources, so we never emit javascript:/data:/etc. as an href.
-// Ported verbatim from web/map.js.
 export function safeHttpUrl(u: unknown): string | null {
   if (typeof u !== "string") return null;
   const t = u.trim();
@@ -63,7 +60,6 @@ export function safeHttpUrl(u: unknown): string | null {
 // buildQuery(state) -> querystring (no leading "?") for GET /api/deals.
 // Only truthy filter fields are emitted. NOTE: no bbox — the API excludes
 // coordless deals when a bbox is present, so the map is scoped client-side.
-// Ported from web/filters.js.
 export function buildQuery(state: FilterState): string {
   const p = new URLSearchParams();
   if (state.type) p.set("type", state.type);
@@ -74,9 +70,8 @@ export function buildQuery(state: FilterState): string {
 }
 
 // matchesFilters(deal, state) -> client-side guard mirroring server filters so a
-// deal already in memory can be re-checked without a refetch. Ported from
-// web/filters.js. include_stale is the server's source of truth; this only
-// refilters the in-memory set so toggling placement/type doesn't refetch.
+// deal already in memory can be re-checked without a refetch. include_stale is
+// the server's source of truth; this only refilters the in-memory set.
 export function matchesFilters(deal: Deal, state: FilterState): boolean {
   if (deal.status === "expired") return false;
   if (deal.status === "stale" && !state.includeStale) return false;
@@ -93,8 +88,7 @@ export function hasCoords(deal: Deal): deal is Deal & { lat: number; lng: number
 
 // dealsForMap(deals, state) -> geocoded physical deals that pass active filters.
 // Viewport scoping is left to MapLibre's clusterer (it culls offscreen markers),
-// which keeps this pure and avoids a refetch on every pan. Ported from web/map.js
-// (the inViewport step is now handled by the map itself).
+// which keeps this pure and avoids a refetch on every pan.
 export function dealsForMap(deals: Deal[], state: FilterState): Deal[] {
   return deals.filter((d) => hasCoords(d) && matchesFilters(d, state));
 }

@@ -23,7 +23,7 @@ function mk(p: Partial<Deal>): Deal {
   };
 }
 
-// --- parseBbox / inBbox (ported from api/main.py _parse_bbox / _in_bbox) ---
+// --- parseBbox / inBbox -----------------------------------------------------
 test("parseBbox", () => {
   assert.equal(parseBbox(null), null);
   assert.equal(parseBbox(""), null);
@@ -84,7 +84,7 @@ test("computeStatus mixed aware/naive never throws (naive read as UTC)", () => {
   assert.equal(computeStatus(null, null, new Date("2026-06-26T12:00:00Z")), "active");
 });
 
-// --- collapseDedup / alt_urls (from api/main.py _collapse_dedup) ---
+// --- collapseDedup / alt_urls ----------------------------------------------
 test("naiveLocalIso + computeStatus: now and last_seen compared as naive (no host-TZ skew)", () => {
   // The scraper writes naive-LOCAL timestamps; the route must pass a naive-local
   // `now` (via naiveLocalIso), NOT a Date. With stale_after_hours=24, a deal seen

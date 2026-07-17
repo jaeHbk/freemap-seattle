@@ -99,7 +99,7 @@ def test_row_shape_parity_string_and_index_access(monkeypatch, tmp_path):
         assert row["lat"] == 47.6
         assert row[0] == row["id"]
         assert list(row.keys()) == ["id", "source", "lat"]
-        # COUNT(*) AS alias must be reachable by the alias name (api/main.meta).
+        # COUNT(*) AS aliases must be reachable by the column name.
         n = conn.execute("SELECT COUNT(*) AS n FROM deals").fetchone()
         assert n["n"] == 1
         # .fetchone()["c"] alias used by tests elsewhere
