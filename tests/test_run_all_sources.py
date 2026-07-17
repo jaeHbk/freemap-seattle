@@ -5,9 +5,11 @@ import httpx
 import pytest
 
 from scrapers.config import Config
+from scrapers.contract import RawDeal
 from scrapers.db import connect, init_db, fetch_all_deals
 from scrapers.geocode import FakeGeocoder
 from scrapers.run import SOURCES, run_all
+from scrapers.sources.places_brand import VerificationError
 
 FIX = Path(__file__).parent / "fixtures"
 NOW = datetime(2026, 6, 18, 12, 0, 0)
@@ -133,3 +135,49 @@ def test_run_all_one_source_throws_others_still_upsert(monkeypatch):
     rows = fetch_all_deals(conn)
     assert len(rows) == 9
     assert all(r["source"] != "reddit" for r in rows)
+
+
+def test_verification_failure_records_error_without_refreshing_existing_rows():
+    conn = connect(":memory:")
+    init_db(conn)
+    config = _config()
+    geocoder = FakeGeocoder({})
+
+    def current_terms(config):
+        return [
+            RawDeal(
+                source="places_brand",
+                source_id="verified::store",
+                title="Free coffee",
+                url="https://example.com/terms",
+                verified_at=NOW,
+            )
+        ]
+
+    first = run_all(
+        config,
+        conn,
+        geocoder,
+        NOW,
+        sources={"places_brand": current_terms},
+    )
+    assert first["places_brand"]["upserted"] == 1
+    assert fetch_all_deals(conn)[0]["last_seen"] == NOW.isoformat()
+
+    def overdue_terms(config):
+        raise VerificationError(
+            "places_brand verification failed: Brand: verification overdue"
+        )
+
+    later = datetime(2026, 6, 19, 13, 0, 0)
+    failed = run_all(
+        config,
+        conn,
+        geocoder,
+        later,
+        sources={"places_brand": overdue_terms},
+    )
+
+    assert "verification overdue" in failed["places_brand"]["errors"]
+    assert failed["places_brand"]["upserted"] == 0
+    assert fetch_all_deals(conn)[0]["last_seen"] == NOW.isoformat()

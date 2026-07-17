@@ -11,14 +11,17 @@ the geocoder resolves to lat/lng.
 Config shape (config.toml):
 
     [sources.places_brand]
-    provider = "config"          # "config" (keyless) | "google"
-    metro_query = "Seattle, WA"  # bias for Places text search
+    provider = "config"             # "config" (keyless) | "google"
+    metro_query = "Seattle, WA"     # bias for Places text search
+    verification_max_age_days = 30  # fail closed when terms need review
 
     [[sources.places_brand.brands]]
     id = "chipotle-rewards"
     name = "Chipotle"
     offer = "Free chips and guacamole with a meal purchase for new Rewards members"
     url = "https://www.chipotle.com/rewards"
+    verified_at = "2026-07-17"
+    expires_at = "2026-12-31"  # optional; date-only values include the full day
     # provider="config": curated real storefront addresses ->
     locations = [
       "1501 4th Ave, Seattle, WA 98101",
@@ -32,7 +35,7 @@ free/BOGO + food/retail keywords (pipeline.py classify)."""
 from __future__ import annotations
 
 import os
-from datetime import datetime
+from datetime import date, datetime, time, timedelta, timezone
 
 import httpx
 
@@ -42,15 +45,75 @@ from scrapers.contract import RawDeal
 PLACES_TEXTSEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
 
-def _verified_at(value: object) -> datetime | None:
+class VerificationError(RuntimeError):
+    """Configured official terms are missing, stale, invalid, or expired."""
+
+
+def _timestamp(value: object, *, end_of_day: bool = False) -> datetime | None:
     if isinstance(value, datetime):
         return value
     if not isinstance(value, str) or not value.strip():
         return None
+    text = value.strip()
     try:
-        return datetime.fromisoformat(value.strip())
+        if end_of_day and len(text) == 10:
+            return datetime.combine(date.fromisoformat(text), time.max)
+        return datetime.fromisoformat(text)
     except ValueError:
         return None
+
+
+def _naive_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _verification_terms(
+    brands: list[dict],
+    max_age_days: int | None,
+    now: datetime,
+) -> list[tuple[datetime | None, datetime | None]]:
+    """Validate official terms before refreshing any storefront rows."""
+    now = _naive_utc(now)
+    terms: list[tuple[datetime | None, datetime | None]] = []
+    problems: list[str] = []
+
+    for brand in brands:
+        brand_id = (brand.get("id") or "").strip()
+        offer = (brand.get("offer") or "").strip()
+        verified_at = _timestamp(brand.get("verified_at"))
+        expires_raw = brand.get("expires_at")
+        expires_at = _timestamp(expires_raw, end_of_day=True)
+        terms.append((verified_at, expires_at))
+
+        # Existing malformed-brand isolation remains intact.
+        if not brand_id or not offer:
+            continue
+
+        label = (brand.get("name") or brand_id).strip()
+        if max_age_days is not None:
+            if verified_at is None:
+                problems.append(f"{label}: verified_at is required and must be ISO-8601")
+            else:
+                verified = _naive_utc(verified_at)
+                age_days = (now.date() - verified.date()).days
+                if age_days < 0:
+                    problems.append(f"{label}: verified_at is in the future")
+                elif age_days > max_age_days:
+                    due = verified.date() + timedelta(days=max_age_days)
+                    problems.append(f"{label}: verification overdue since {due.isoformat()}")
+
+        if expires_raw not in (None, "") and expires_at is None:
+            problems.append(f"{label}: expires_at must be ISO-8601")
+        elif expires_at is not None and _naive_utc(expires_at) < now:
+            problems.append(f"{label}: offer expired at {expires_at.isoformat()}")
+
+    if problems:
+        raise VerificationError(
+            "places_brand verification failed: " + "; ".join(problems)
+        )
+    return terms
 
 
 def _storefronts_from_config(brand: dict) -> list[tuple[str, str]]:
@@ -95,16 +158,31 @@ def _storefronts_from_google(brand: dict, metro_query: str, api_key: str) -> lis
     return out
 
 
-def fetch(config: Config) -> list[RawDeal]:
+def fetch(config: Config, now: datetime | None = None) -> list[RawDeal]:
     settings = config.sources.get("places_brand", {})
     provider = settings.get("provider", "config")
     metro_query = settings.get("metro_query", "Seattle, WA")
     brands: list[dict] = settings.get("brands", [])
+    max_age_raw = settings.get("verification_max_age_days")
+    if max_age_raw is None:
+        max_age_days = None
+    else:
+        if isinstance(max_age_raw, bool) or not isinstance(max_age_raw, int):
+            raise VerificationError(
+                "places_brand verification_max_age_days must be a positive integer"
+            )
+        max_age_days = max_age_raw
+        if max_age_days <= 0:
+            raise VerificationError(
+                "places_brand verification_max_age_days must be a positive integer"
+            )
+
+    terms = _verification_terms(brands, max_age_days, now or datetime.now())
 
     api_key = os.environ.get("GOOGLE_MAPS_API_KEY") if provider == "google" else None
 
     deals: list[RawDeal] = []
-    for brand in brands:
+    for brand, (verified_at, expires_at) in zip(brands, terms, strict=True):
         # Per-brand isolation mirrors chains.py: one brand failing (bad config, a
         # Places error) is skipped, never fatal to the whole fetch.
         try:
@@ -118,8 +196,6 @@ def fetch(config: Config) -> list[RawDeal]:
             offer_url = (brand.get("url") or "").strip() or ""
             eligibility = (brand.get("eligibility") or "").strip() or None
             redemption = (brand.get("redemption") or "").strip() or None
-            verified_at = _verified_at(brand.get("verified_at"))
-
             if provider == "google" and api_key:
                 storefronts = _storefronts_from_google(brand, metro_query, api_key)
             else:
@@ -141,7 +217,7 @@ def fetch(config: Config) -> list[RawDeal]:
                         verified_at=verified_at,
                         raw_location=address,
                         posted_at=None,
-                        expires_at=None,
+                        expires_at=expires_at,
                         raw={
                             "brand_id": brand_id,
                             "brand": name,

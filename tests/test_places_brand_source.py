@@ -4,10 +4,11 @@ No live network: httpx.get is monkeypatched; the google path uses a recorded
 Places Text Search JSON fixture."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
+import pytest
 
 from scrapers.config import Config
 from scrapers.contract import RawDeal
@@ -16,7 +17,11 @@ from scrapers.sources import places_brand
 FIXTURE = Path(__file__).parent / "fixtures" / "places_textsearch.json"
 
 
-def _config(provider: str = "config", brands=None) -> Config:
+def _config(
+    provider: str = "config",
+    brands=None,
+    verification_max_age_days=None,
+) -> Config:
     if brands is None:
         brands = [
             {
@@ -48,7 +53,17 @@ def _config(provider: str = "config", brands=None) -> Config:
         geocoder_min_interval_seconds=1.0,
         geocoder_max_live_calls=200,
         sources_enabled=["places_brand"],
-        sources={"places_brand": {"provider": provider, "brands": brands}},
+        sources={
+            "places_brand": {
+                "provider": provider,
+                "brands": brands,
+                **(
+                    {"verification_max_age_days": verification_max_age_days}
+                    if verification_max_age_days is not None
+                    else {}
+                ),
+            }
+        },
     )
 
 
@@ -109,6 +124,99 @@ def test_brand_without_id_or_offer_is_skipped():
     # Only the valid brand's single storefront survives.
     assert len(deals) == 1
     assert deals[0].source_id == "ok::A St, Seattle"
+
+
+def test_verification_window_accepts_current_terms_and_propagates_expiry():
+    now = datetime(2026, 7, 17, 12)
+    brands = [
+        {
+            "id": "current",
+            "name": "Current Brand",
+            "offer": "Free coffee",
+            "verified_at": "2026-06-17",
+            "expires_at": "2026-07-17",
+            "locations": ["A St, Seattle"],
+        }
+    ]
+
+    deals = places_brand.fetch(
+        _config(brands=brands, verification_max_age_days=30),
+        now=now,
+    )
+
+    assert len(deals) == 1
+    assert deals[0].verified_at == datetime(2026, 6, 17)
+    assert deals[0].expires_at == datetime.combine(
+        datetime(2026, 7, 17).date(),
+        datetime.max.time(),
+    )
+
+
+def test_verification_window_fails_closed_for_all_invalid_terms():
+    now = datetime(2026, 7, 17, 12)
+    brands = [
+        {
+            "id": "missing",
+            "name": "Missing",
+            "offer": "Free coffee",
+            "locations": ["A St, Seattle"],
+        },
+        {
+            "id": "old",
+            "name": "Old",
+            "offer": "Free coffee",
+            "verified_at": (now - timedelta(days=31)).date().isoformat(),
+            "locations": ["B St, Seattle"],
+        },
+        {
+            "id": "future",
+            "name": "Future",
+            "offer": "Free coffee",
+            "verified_at": (now + timedelta(days=1)).date().isoformat(),
+            "locations": ["C St, Seattle"],
+        },
+        {
+            "id": "expired",
+            "name": "Expired",
+            "offer": "Free coffee",
+            "verified_at": now.date().isoformat(),
+            "expires_at": "2026-07-16",
+            "locations": ["D St, Seattle"],
+        },
+        {
+            "id": "bad-expiry",
+            "name": "Bad Expiry",
+            "offer": "Free coffee",
+            "verified_at": now.date().isoformat(),
+            "expires_at": "eventually",
+            "locations": ["E St, Seattle"],
+        },
+    ]
+
+    with pytest.raises(places_brand.VerificationError) as exc_info:
+        places_brand.fetch(
+            _config(brands=brands, verification_max_age_days=30),
+            now=now,
+        )
+
+    message = str(exc_info.value)
+    assert "Missing: verified_at is required" in message
+    assert "Old: verification overdue since 2026-07-16" in message
+    assert "Future: verified_at is in the future" in message
+    assert "Expired: offer expired at" in message
+    assert "Bad Expiry: expires_at must be ISO-8601" in message
+
+
+@pytest.mark.parametrize("value", [0, -1, 1.5, True, "never"])
+def test_verification_window_requires_positive_integer(value):
+    with pytest.raises(
+        places_brand.VerificationError,
+        match="verification_max_age_days must be a positive integer",
+    ):
+        places_brand.fetch(
+            _config(verification_max_age_days=value),
+            now=datetime(2026, 7, 17),
+        )
 
 
 # --- google provider (recorded Places JSON, monkeypatched httpx) ----------------

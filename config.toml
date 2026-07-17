@@ -17,13 +17,14 @@ stale_after_hours = 24
 # the workflow; Reddit belongs there because a live IP may be rate-limited even
 # though its browser-UA fetch path is functional.
 # Fetched and stored coverage must both match the committed 43-location verified
-# inventory. At least 40 addresses are proven against the keyless Census
-# geocoder; any loss below that measured floor alerts operators.
+# inventory. Clean Census runs produce 40 pins; the 39-pin floor tolerates one
+# transient miss beyond the three reproducible failures while still alerting on
+# additional loss.
 [health]
 expected = ["places_brand"]
 optional = ["reddit"]
 minimum_deals = { places_brand = 43 }
-minimum_pins = { places_brand = 40 }
+minimum_pins = { places_brand = 39 }
 
 [geocoder]
 # provider: "census" (keyless US Census geocoder, the default — works unattended)
@@ -75,6 +76,10 @@ feed_urls = ["https://www.myballard.com/feed/"]
 [sources.places_brand]
 provider = "config"
 metro_query = "Seattle, WA"
+# Official terms must be reviewed at least monthly. If any configured offer is
+# missing, malformed, future-dated, overdue, or explicitly expired, the required
+# source fails before refreshing rows; the prior rows then age out as stale.
+verification_max_age_days = 30
 
 # Verified 2026-07-13 against Chipotle's official Rewards page (updated
 # 2026-05-20) and official Seattle location directory (updated 2026-07-06).

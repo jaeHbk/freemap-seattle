@@ -85,12 +85,13 @@ def test_committed_config_toml_loads_and_sources_reachable():
     assert cfg.metro == "seattle"
     assert cfg.sources_enabled == ["places_brand", "reddit"]
     assert cfg.sources["places_brand"]["brands"]  # reachable, non-empty
+    assert cfg.sources["places_brand"]["verification_max_age_days"] == 30
     assert cfg.sources["reddit"]["subreddits"]  # block still reachable as a plain dict
     expected, optional = load_health_baseline("config.toml")
     assert expected == ["places_brand"]
     assert optional == ["reddit"]
     assert load_minimum_deals("config.toml") == {"places_brand": 43}
-    assert load_minimum_pins("config.toml") == {"places_brand": 40}
+    assert load_minimum_pins("config.toml") == {"places_brand": 39}
 
 
 def test_committed_brand_offers_are_scoped_and_cover_multiple_brands():

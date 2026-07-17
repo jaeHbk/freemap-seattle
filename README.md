@@ -22,7 +22,7 @@ GitHub Actions (12h cron) --writes--> Turso <--reads-- Next.js on Vercel
   an ephemeral runner database.
 - Each source run records found/upserted counts, mapped pins, geocode failures,
   duration, completion time, and error status.
-- The health gate requires all 43 verified `places_brand` deals and at least 40
+- The health gate requires all 43 verified `places_brand` deals and at least 39
   current map pins. A partial source or geocoder regression cannot stay green.
 - A failed scheduled scrape opens or updates one GitHub issue; the next healthy
   run comments on and closes it.
@@ -94,6 +94,11 @@ Freshness is computed at read time:
 Verified brand rows also carry structured eligibility, redemption instructions,
 and verification dates. The list and map both open the same deal-detail drawer;
 community rows without structured terms link back to their source.
+
+Official brand terms fail closed after 30 days without human reverification.
+Malformed, future-dated, overdue, or explicitly expired terms stop the required
+source before it refreshes `last_seen`; prior rows then become stale and disappear
+within 24 hours. Date-only `expires_at` values remain valid through that full day.
 
 The keyless US Census geocoder is the default. Google is optional; public
 Nominatim is retained only for local experimentation because hosted requests

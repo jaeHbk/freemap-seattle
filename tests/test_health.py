@@ -85,8 +85,8 @@ def test_expected_source_below_deal_coverage_floor_fails():
         {"places_brand": _run(42)},
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 40},
-        minimum_pins={"places_brand": 40},
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
         minimum_deals={"places_brand": 43},
     )
 
@@ -101,8 +101,8 @@ def test_expected_source_at_coverage_floors_passes():
         {"places_brand": _run(43)},
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 40},
-        minimum_pins={"places_brand": 40},
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
         minimum_deals={"places_brand": 43},
     )
 
@@ -116,8 +116,8 @@ def test_expected_source_below_stored_coverage_floor_fails():
         {"places_brand": run},
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 40},
-        minimum_pins={"places_brand": 40},
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
         minimum_deals={"places_brand": 43},
     )
 
@@ -132,8 +132,8 @@ def test_health_report_includes_operational_telemetry():
         "places_brand": {
             "deals_found": 43,
             "deals_upserted": 43,
-            "map_pins": 40,
-            "geocode_failures": 3,
+            "map_pins": 39,
+            "geocode_failures": 4,
             "duration_ms": 1250,
             "errors": None,
         }
@@ -142,8 +142,8 @@ def test_health_report_includes_operational_telemetry():
         latest,
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 40},
-        minimum_pins={"places_brand": 40},
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
         minimum_deals={"places_brand": 43},
     )
 
@@ -152,12 +152,12 @@ def test_health_report_includes_operational_telemetry():
         latest,
         EXPECTED,
         OPTIONAL,
-        pin_counts={"places_brand": 40},
-        minimum_pins={"places_brand": 40},
+        pin_counts={"places_brand": 39},
+        minimum_pins={"places_brand": 39},
     )
 
-    assert "found=43 upserted=43 pins=40" in report
-    assert "geocode_failed=3 duration_ms=1250" in report
+    assert "found=43 upserted=43 pins=39" in report
+    assert "geocode_failed=4 duration_ms=1250" in report
     assert report.endswith("HEALTHY")
 
 

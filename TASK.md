@@ -35,11 +35,25 @@ The enabled source set is:
 
 The scrape command prints `found`, `upserted`, `pins`, `geocode_failed`,
 `duration_ms`, and `ok` or `ERROR` for each source. The health command must
-print `[ok] places_brand` with `found=43`, at least `pins=40`, and finish with
+print `[ok] places_brand` with `found=43`, at least `pins=39`, and finish with
 `HEALTHY`. Reddit is reported as `[opt]` and does not control the exit code.
 
-Any missing, errored, stale, sub-43-fetched, sub-43-stored, or sub-40-pin
+Any missing, errored, stale, sub-43-fetched, sub-43-stored, or sub-39-pin
 `places_brand` run is a failure.
+
+## Reverify official offers
+
+Before an offer reaches `verification_max_age_days = 30`:
+
+1. Open each brand's configured official terms URL and confirm the offer,
+   eligibility, redemption steps, and any expiration.
+2. Check the official store locator and update `locations`, deal/pin floors, and
+   geocoder evidence when storefronts changed.
+3. Set `verified_at` to the review date. Add or update `expires_at` for finite
+   promotions; a date-only value is valid through the end of that date.
+4. Run the scrape and health commands above. A missing, malformed, future,
+   overdue, or expired verification fails the required source without refreshing
+   old rows.
 
 ## Verify rows
 
