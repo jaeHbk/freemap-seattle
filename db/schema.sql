@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS deals (
     title           TEXT NOT NULL,
     url             TEXT NOT NULL,
     description     TEXT,
+    eligibility     TEXT,
+    redemption      TEXT,
+    verified_at     TIMESTAMP,
     deal_type       TEXT NOT NULL,   -- "free" | "bogo" | "other"
     category        TEXT NOT NULL,   -- "food" | "retail" | "event" | "other"
     placement       TEXT NOT NULL,   -- "physical" | "online"

@@ -4,6 +4,7 @@ No live network: httpx.get is monkeypatched; the google path uses a recorded
 Places Text Search JSON fixture."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -23,6 +24,9 @@ def _config(provider: str = "config", brands=None) -> Config:
                 "name": "Starbucks",
                 "offer": "Buy one drink get one free (BOGO)",
                 "url": "https://www.starbucks.com/rewards",
+                "eligibility": "Rewards members",
+                "redemption": "Activate in the app",
+                "verified_at": "2026-07-16",
                 "locations": [
                     "102 Pike St, Seattle, WA 98101",
                     "1912 Pike Pl, Seattle, WA 98101",
@@ -81,6 +85,9 @@ def test_config_provider_fans_offer_out_to_each_storefront():
     sbux = [d for d in deals if d.source_id.startswith("starbucks-bogo::")]
     assert len(sbux) == 2
     assert all("BOGO" in d.title for d in sbux)
+    assert all(d.eligibility == "Rewards members" for d in sbux)
+    assert all(d.redemption == "Activate in the app" for d in sbux)
+    assert all(d.verified_at == datetime(2026, 7, 16) for d in sbux)
 
 
 def test_config_provider_makes_no_network_call(monkeypatch):

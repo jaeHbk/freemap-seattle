@@ -21,6 +21,9 @@ def normalize(raw: RawDeal) -> RawDeal:
 
     raw.title = _clean(raw.title) or ""
     raw.description = _clean(raw.description)
+    raw.eligibility = _clean(raw.eligibility)
+    raw.redemption = _clean(raw.redemption)
+    raw.verified_at = _safe_dt(raw.verified_at)
     raw.raw_location = _clean(raw.raw_location)
     raw.posted_at = _safe_dt(raw.posted_at)
     raw.expires_at = _safe_dt(raw.expires_at)
@@ -59,6 +62,9 @@ def classify(raw: RawDeal) -> Deal:
         title=raw.title,
         url=raw.url,
         description=raw.description,
+        eligibility=raw.eligibility,
+        redemption=raw.redemption,
+        verified_at=raw.verified_at,
         deal_type=deal_type,
         category=category,
         placement=placement,

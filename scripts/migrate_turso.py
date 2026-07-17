@@ -15,6 +15,8 @@ import os
 import sys
 from pathlib import Path
 
+from scrapers.db import ensure_schema_migrations
+
 # schema.sql is the committed source of truth, same file scrapers.db.init_db() runs.
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
 
@@ -43,6 +45,7 @@ def main() -> int:
             # no string literals with ';', so a naive split is safe here.
             for stmt in filter(str.strip, schema.split(";")):
                 conn.execute(stmt)
+        ensure_schema_migrations(conn)
         conn.commit()
         # Prove the schema actually reached the remote. executescript()+commit()
         # can buffer and return without error against an unreachable host / bad

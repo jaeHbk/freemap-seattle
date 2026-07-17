@@ -26,8 +26,9 @@ export FREEMAP_REQUIRE_TURSO=1
 ./.venv/bin/python -m scripts.migrate_turso
 ```
 
-The migration is idempotent and verifies the remote schema with a read-back
-query. A successful run prints:
+The migration is idempotent, adds any nullable deal-detail columns introduced
+after the initial schema, and verifies the remote schema with a read-back query.
+A successful run prints:
 
 ```text
 Turso schema applied and verified (idempotent).

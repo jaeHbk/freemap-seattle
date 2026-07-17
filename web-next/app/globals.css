@@ -284,6 +284,37 @@
   text-decoration: underline;
 }
 
+.fm-popup-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.fm-popup-actions .fm-popup-link {
+  margin-top: 0;
+}
+
+.fm-popup-detail {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fm-popup-detail:hover {
+  color: var(--primary);
+}
+
+.fm-popup-detail:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .maplibregl-ctrl-attrib {
   color: var(--muted-foreground);
   font-family: var(--font-sans), system-ui, sans-serif;

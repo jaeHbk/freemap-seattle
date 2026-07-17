@@ -16,6 +16,9 @@ export interface Deal {
   title: string;
   url: string;
   description: string | null;
+  eligibility?: string | null;
+  redemption?: string | null;
+  verified_at?: string | null;
   deal_type: DealType;
   category: Category;
   placement: Placement;

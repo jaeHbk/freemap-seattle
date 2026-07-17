@@ -84,6 +84,10 @@ Freshness is computed at read time:
 - `stale`: hidden unless `include_stale=true`
 - `active`: shown
 
+Verified brand rows also carry structured eligibility, redemption instructions,
+and verification dates. The list and map both open the same deal-detail drawer;
+community rows without structured terms link back to their source.
+
 The keyless US Census geocoder is the default. Google is optional; public
 Nominatim is retained only for local experimentation because hosted requests
 are commonly rejected.

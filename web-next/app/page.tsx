@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 
 import { Filters } from "@/components/Filters";
+import { DealDetails } from "@/components/DealDetails";
 import { DealList } from "@/components/DealList";
 import { DealMap } from "@/components/DealMap";
 import { LocationSearch } from "@/components/LocationSearch";
@@ -52,6 +53,7 @@ export default function Home() {
   const [selectedDealId, setSelectedDealId] = React.useState<string | null>(
     null,
   );
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   // Fetch deals whenever a SERVER-side filter changes. include_stale is the
   // server's source of truth (the old app's bug was refiltering only in memory);
@@ -108,6 +110,8 @@ export default function Home() {
   const hasActiveFilters = Boolean(
     filters.type || filters.category || filters.placement || filters.includeStale,
   );
+  const selectedDeal =
+    deals.find((deal) => String(deal.id) === selectedDealId) ?? null;
 
   const clearFilters = React.useCallback(() => setFilters(EMPTY_FILTERS), []);
   const selectDeal = React.useCallback(
@@ -117,6 +121,10 @@ export default function Home() {
   const showDealOnMap = React.useCallback((dealId: string) => {
     setSelectedDealId(dealId);
     setView("map");
+  }, []);
+  const viewDealDetails = React.useCallback((dealId: string) => {
+    setSelectedDealId(dealId);
+    setDetailsOpen(true);
   }, []);
 
   return (
@@ -210,6 +218,7 @@ export default function Home() {
                 origin={origin}
                 selectedDealId={selectedDealId}
                 onSelectDeal={selectDeal}
+                onViewDetails={viewDealDetails}
                 onClearFilters={hasActiveFilters ? clearFilters : undefined}
               />
             </section>
@@ -227,6 +236,7 @@ export default function Home() {
                 selectedDealId={selectedDealId}
                 onSelectDeal={selectDeal}
                 onShowOnMap={showDealOnMap}
+                onViewDetails={viewDealDetails}
                 onClearFilters={clearFilters}
               />
             </section>
@@ -235,30 +245,43 @@ export default function Home() {
       </div>
 
       {/* Mobile filter drawer */}
-      <Drawer.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
+      <Drawer.Root
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        swipeDirection="right"
+      >
         <Drawer.Portal>
           <Drawer.Backdrop className="fixed inset-0 z-[900] bg-black/40 backdrop-blur-sm transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 motion-reduce:transition-none" />
-          <Drawer.Popup
-            className={cn(
-              "fixed inset-y-0 right-0 z-[1000] flex w-[min(20rem,90vw)] flex-col bg-background p-6 shadow-2xl",
-              "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[ending-style]:translate-x-full data-[starting-style]:translate-x-full motion-reduce:transition-none"
-            )}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <Drawer.Title className="font-heading text-lg font-semibold text-foreground">
-                Filters
-              </Drawer.Title>
-              <Drawer.Close
-                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Close filters"
-              >
-                <X className="size-4" />
-              </Drawer.Close>
-            </div>
-            <Filters state={filters} onChange={setFilters} count={visibleCount} />
-          </Drawer.Popup>
+          <Drawer.Viewport className="pointer-events-none fixed inset-0 z-[1000]">
+            <Drawer.Popup
+              className={cn(
+                "pointer-events-auto fixed inset-y-0 right-0 flex w-[min(20rem,90vw)] flex-col bg-background p-6 shadow-2xl",
+                "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[ending-style]:translate-x-full data-[starting-style]:translate-x-full motion-reduce:transition-none"
+              )}
+            >
+              <div className="mb-5 flex items-center justify-between">
+                <Drawer.Title className="font-heading text-lg font-semibold text-foreground">
+                  Filters
+                </Drawer.Title>
+                <Drawer.Close
+                  className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Close filters"
+                >
+                  <X className="size-4" />
+                </Drawer.Close>
+              </div>
+              <Filters state={filters} onChange={setFilters} count={visibleCount} />
+            </Drawer.Popup>
+          </Drawer.Viewport>
         </Drawer.Portal>
       </Drawer.Root>
+
+      <DealDetails
+        deal={selectedDeal}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        onShowOnMap={showDealOnMap}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   Clock,
   ExternalLink,
   Globe,
+  Info,
   Map,
   MapPinned,
   MapPinOff,
@@ -73,6 +74,7 @@ interface DealCardProps {
   selected: boolean;
   onSelectDeal: (dealId: string) => void;
   onShowOnMap: (dealId: string) => void;
+  onViewDetails: (dealId: string) => void;
 }
 
 function DealCard({
@@ -83,6 +85,7 @@ function DealCard({
   selected,
   onSelectDeal,
   onShowOnMap,
+  onViewDetails,
 }: DealCardProps) {
   const ts = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
   const stale = deal.status === "stale";
@@ -161,6 +164,17 @@ function DealCard({
               )}
             </span>
             <span className="flex shrink-0 flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectDeal(dealId);
+                  onViewDetails(dealId);
+                }}
+                className="inline-flex items-center gap-1 rounded-md font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Info className="size-3.5" />
+                Details
+              </button>
               {mapped && (
                 <button
                   type="button"
@@ -201,6 +215,7 @@ interface DealListProps {
   selectedDealId: string | null;
   onSelectDeal: (dealId: string) => void;
   onShowOnMap: (dealId: string) => void;
+  onViewDetails: (dealId: string) => void;
   onClearFilters: () => void;
 }
 
@@ -210,6 +225,7 @@ export function DealList({
   selectedDealId,
   onSelectDeal,
   onShowOnMap,
+  onViewDetails,
   onClearFilters,
 }: DealListProps) {
   const reduce = useReducedMotion();
@@ -265,6 +281,7 @@ export function DealList({
           selected={String(d.id) === selectedDealId}
           onSelectDeal={onSelectDeal}
           onShowOnMap={onShowOnMap}
+          onViewDetails={onViewDetails}
         />
       ))}
     </ul>

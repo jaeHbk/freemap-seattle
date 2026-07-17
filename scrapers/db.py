@@ -8,6 +8,11 @@ from scrapers.contract import Deal
 
 # Resolve schema.sql relative to this file so init_db works from any CWD.
 _SCHEMA_PATH = Path(__file__).resolve().parent.parent / "db" / "schema.sql"
+_DEAL_COLUMN_MIGRATIONS = {
+    "eligibility": "TEXT",
+    "redemption": "TEXT",
+    "verified_at": "TIMESTAMP",
+}
 
 
 # --- libSQL/Turso adapter ---------------------------------------------------
@@ -155,9 +160,18 @@ def connect(path: str):
 
 
 def init_db(conn: sqlite3.Connection) -> None:
-    """Execute db/schema.sql against conn. Idempotent (schema uses IF NOT EXISTS)."""
+    """Create the current schema and upgrade existing deal tables in place."""
     conn.executescript(_SCHEMA_PATH.read_text())
+    ensure_schema_migrations(conn)
     conn.commit()
+
+
+def ensure_schema_migrations(conn) -> None:
+    """Add nullable columns introduced after the initial production schema."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(deals)").fetchall()}
+    for name, sql_type in _DEAL_COLUMN_MIGRATIONS.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE deals ADD COLUMN {name} {sql_type}")
 
 
 def _to_db(value):
@@ -176,10 +190,12 @@ def upsert_deals(conn, deals: list[Deal], now: datetime) -> int:
     sql = """
         INSERT INTO deals (
             source, source_id, dedup_key, title, url, description,
+            eligibility, redemption, verified_at,
             deal_type, category, placement, lat, lng, raw_location,
             geocode_status, posted_at, expires_at, first_seen, last_seen, status
         ) VALUES (
             :source, :source_id, :dedup_key, :title, :url, :description,
+            :eligibility, :redemption, :verified_at,
             :deal_type, :category, :placement, :lat, :lng, :raw_location,
             :geocode_status, :posted_at, :expires_at, :now, :now, 'active'
         )
@@ -188,6 +204,9 @@ def upsert_deals(conn, deals: list[Deal], now: datetime) -> int:
             title=excluded.title,
             url=excluded.url,
             description=excluded.description,
+            eligibility=excluded.eligibility,
+            redemption=excluded.redemption,
+            verified_at=excluded.verified_at,
             deal_type=excluded.deal_type,
             category=excluded.category,
             placement=excluded.placement,
@@ -214,6 +233,9 @@ def upsert_deals(conn, deals: list[Deal], now: datetime) -> int:
                 "title": d.title,
                 "url": d.url,
                 "description": d.description,
+                "eligibility": d.eligibility,
+                "redemption": d.redemption,
+                "verified_at": _to_db(d.verified_at),
                 "deal_type": d.deal_type,
                 "category": d.category,
                 "placement": d.placement,

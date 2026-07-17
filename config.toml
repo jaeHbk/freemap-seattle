@@ -81,6 +81,9 @@ id = "chipotle-rewards-free-chips-guac"
 name = "Chipotle"
 offer = "Free chips and guacamole with a $5+ meal purchase for new Chipotle Rewards members"
 url = "https://www.chipotle.com/rewards"
+eligibility = "New Chipotle Rewards members making a qualifying meal purchase of at least $5."
+redemption = "Join or sign in to Chipotle Rewards, activate the new-member offer, and apply it to an eligible order under the official terms."
+verified_at = "2026-07-13"
 locations = [
   "1415 Broadway, Seattle, WA 98122",
   "401 NE Northgate Way, Seattle, WA 98125",
@@ -101,6 +104,9 @@ id = "mod-kids-eat-free-sundays"
 name = "MOD Pizza"
 offer = "Sundays: buy one MOD-size pizza or salad and get one kids meal free (ages 12 and under)"
 url = "https://modpizza.com/rewards-and-promo-terms/"
+eligibility = "Children age 12 or younger with the purchase of one MOD-size pizza or salad on Sunday; one free kids meal per qualifying item."
+redemption = "Order at a participating MOD location on Sunday and mention the kids-meal offer before payment."
+verified_at = "2026-07-13"
 locations = [
   "1302 6th Ave, Seattle, WA 98101",
   "1414 NE 42nd St Ste 103-B, Seattle, WA 98105",
@@ -118,6 +124,9 @@ id = "starbucks-rewards-birthday-drink"
 name = "Starbucks"
 offer = "Free standard-menu-size birthday drink for eligible Starbucks Rewards members after one Star-earning purchase"
 url = "https://www.starbucks.com/rewards/terms/"
+eligibility = "Starbucks Rewards members who joined at least 7 days before their birthday, added their birthday, and made at least one Star-earning transaction that year."
+redemption = "At a participating store, scan the member barcode in the Starbucks app or present the registered Starbucks Card while the Birthday Reward is active."
+verified_at = "2026-07-16"
 locations = [
   "999 3rd Ave, Seattle, WA 98104",
   "701 5th Ave, Seattle, WA 98104",
@@ -152,6 +161,9 @@ id = "ulta-rewards-birthday-gift"
 name = "Ulta Beauty"
 offer = "Free birthday beauty gift for eligible Ulta Beauty Rewards members, while supplies last"
 url = "https://www.ulta.com/rewards/birthday-gift"
+eligibility = "Ulta Beauty Rewards members with a birth date in their profile who opted into marketing messages before their birthday month; while supplies last."
+redemption = "Use the birthday offer from the Ulta email or app in store. Online redemption requires a qualifying non-Marketplace purchase."
+verified_at = "2026-07-16"
 locations = [
   "13201 Aurora Ave N, Seattle, WA 98133",
   "2600 SW Barton St Ste B18, Seattle, WA 98126",

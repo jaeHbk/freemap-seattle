@@ -9,6 +9,9 @@ class RawDeal:
     title: str
     url: str
     description: str | None = None
+    eligibility: str | None = None
+    redemption: str | None = None
+    verified_at: datetime | None = None
     raw_location: str | None = None
     posted_at: datetime | None = None
     expires_at: datetime | None = None
@@ -32,3 +35,6 @@ class Deal:
     posted_at: datetime | None
     expires_at: datetime | None
     dedup_key: str | None = None
+    eligibility: str | None = None
+    redemption: str | None = None
+    verified_at: datetime | None = None

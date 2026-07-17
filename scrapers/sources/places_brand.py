@@ -32,6 +32,7 @@ free/BOGO + food/retail keywords (pipeline.py classify)."""
 from __future__ import annotations
 
 import os
+from datetime import datetime
 
 import httpx
 
@@ -39,6 +40,17 @@ from scrapers.config import Config
 from scrapers.contract import RawDeal
 
 PLACES_TEXTSEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+
+
+def _verified_at(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value.strip())
+    except ValueError:
+        return None
 
 
 def _storefronts_from_config(brand: dict) -> list[tuple[str, str]]:
@@ -104,6 +116,9 @@ def fetch(config: Config) -> list[RawDeal]:
             if not brand_id or not offer:
                 continue
             offer_url = (brand.get("url") or "").strip() or ""
+            eligibility = (brand.get("eligibility") or "").strip() or None
+            redemption = (brand.get("redemption") or "").strip() or None
+            verified_at = _verified_at(brand.get("verified_at"))
 
             if provider == "google" and api_key:
                 storefronts = _storefronts_from_google(brand, metro_query, api_key)
@@ -121,6 +136,9 @@ def fetch(config: Config) -> list[RawDeal]:
                         title=offer,
                         url=offer_url or f"https://www.google.com/maps/search/{name}",
                         description=f"{name} — {address}",
+                        eligibility=eligibility,
+                        redemption=redemption,
+                        verified_at=verified_at,
                         raw_location=address,
                         posted_at=None,
                         expires_at=None,

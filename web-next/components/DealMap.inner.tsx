@@ -87,7 +87,7 @@ function addPinImages(map: maplibregl.Map) {
 }
 
 // Build popup DOM with textContent so scraped fields can never inject markup.
-function popupFor(deal: Deal): HTMLElement {
+function popupFor(deal: Deal, onViewDetails: () => void): HTMLElement {
   const typeStyle = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
   const root = document.createElement("div");
   root.className = "fm-popup";
@@ -109,6 +109,16 @@ function popupFor(deal: Deal): HTMLElement {
     root.appendChild(location);
   }
 
+  const actions = document.createElement("div");
+  actions.className = "fm-popup-actions";
+
+  const detailButton = document.createElement("button");
+  detailButton.type = "button";
+  detailButton.className = "fm-popup-detail";
+  detailButton.textContent = "Details";
+  detailButton.addEventListener("click", onViewDetails);
+  actions.appendChild(detailButton);
+
   const safeUrl = safeHttpUrl(deal.url);
   if (safeUrl) {
     const link = document.createElement("a");
@@ -117,13 +127,14 @@ function popupFor(deal: Deal): HTMLElement {
     link.rel = "noopener noreferrer";
     link.className = "fm-popup-link";
     link.textContent = "View deal";
-    root.appendChild(link);
+    actions.appendChild(link);
   } else {
     const unavailable = document.createElement("span");
     unavailable.className = "fm-popup-loc";
     unavailable.textContent = "Deal link unavailable";
-    root.appendChild(unavailable);
+    actions.appendChild(unavailable);
   }
+  root.appendChild(actions);
 
   return root;
 }
@@ -241,6 +252,7 @@ interface DealMapInnerProps {
   origin: SearchOrigin | null;
   selectedDealId: string | null;
   onSelectDeal: (dealId: string) => void;
+  onViewDetails: (dealId: string) => void;
   onInitializationError?: (message: string) => void;
 }
 
@@ -249,6 +261,7 @@ export default function DealMapInner({
   origin,
   selectedDealId,
   onSelectDeal,
+  onViewDetails,
   onInitializationError,
 }: DealMapInnerProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -259,6 +272,7 @@ export default function DealMapInner({
   const originRef = React.useRef(origin);
   const selectedDealIdRef = React.useRef(selectedDealId);
   const onSelectDealRef = React.useRef(onSelectDeal);
+  const onViewDetailsRef = React.useRef(onViewDetails);
   const dealsByIdRef = React.useRef(
     new Map(deals.map((deal) => [String(deal.id), deal])),
   );
@@ -274,7 +288,8 @@ export default function DealMapInner({
     originRef.current = origin;
     selectedDealIdRef.current = selectedDealId;
     onSelectDealRef.current = onSelectDeal;
-  }, [onSelectDeal, origin, selectedDealId]);
+    onViewDetailsRef.current = onViewDetails;
+  }, [onSelectDeal, onViewDetails, origin, selectedDealId]);
 
   React.useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -369,7 +384,9 @@ export default function DealMapInner({
         offset: 26,
       })
         .setLngLat(coordinates)
-        .setDOMContent(popupFor(deal))
+        .setDOMContent(
+          popupFor(deal, () => onViewDetailsRef.current(String(deal.id))),
+        )
         .addTo(map);
     };
 

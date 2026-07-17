@@ -50,6 +50,24 @@ def test_init_db_is_idempotent(conn):
     db.init_db(conn)
 
 
+def test_init_db_migrates_existing_deals_table():
+    legacy = sqlite3.connect(":memory:")
+    legacy.execute(
+        "CREATE TABLE deals ("
+        "id INTEGER PRIMARY KEY, source TEXT NOT NULL, source_id TEXT NOT NULL, "
+        "dedup_key TEXT, lat REAL, lng REAL"
+        ")"
+    )
+
+    db.init_db(legacy)
+
+    columns = {
+        row[1] for row in legacy.execute("PRAGMA table_info(deals)").fetchall()
+    }
+    assert {"eligibility", "redemption", "verified_at"} <= columns
+    legacy.close()
+
+
 def test_upsert_inserts_then_bumps_last_seen(conn):
     t1 = datetime(2026, 6, 18, 10, 0, 0)
     t2 = datetime(2026, 6, 18, 11, 0, 0)
@@ -67,6 +85,21 @@ def test_upsert_inserts_then_bumps_last_seen(conn):
     assert len(rows) == 1
     assert rows[0]["first_seen"] == t1.isoformat()   # preserved
     assert rows[0]["last_seen"] == t2.isoformat()    # bumped
+
+
+def test_upsert_persists_structured_deal_terms(conn):
+    verified = datetime(2026, 7, 16)
+    deal = _deal()
+    deal.eligibility = "Rewards members"
+    deal.redemption = "Activate the offer in the app"
+    deal.verified_at = verified
+
+    assert db.upsert_deals(conn, [deal], verified) == 1
+
+    row = conn.execute("SELECT * FROM deals WHERE source_id='r1'").fetchone()
+    assert row["eligibility"] == "Rewards members"
+    assert row["redemption"] == "Activate the offer in the app"
+    assert row["verified_at"] == verified.isoformat()
 
 
 def test_record_run_writes_one_row(conn):

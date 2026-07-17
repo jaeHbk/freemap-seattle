@@ -31,6 +31,7 @@ interface DealMapProps {
   origin: SearchOrigin | null;
   selectedDealId: string | null;
   onSelectDeal: (dealId: string) => void;
+  onViewDetails: (dealId: string) => void;
   onClearFilters?: () => void;
 }
 
@@ -39,6 +40,7 @@ export function DealMap({
   origin,
   selectedDealId,
   onSelectDeal,
+  onViewDetails,
   onClearFilters,
 }: DealMapProps) {
   const [initializationError, setInitializationError] = React.useState<
@@ -76,6 +78,7 @@ export function DealMap({
           origin={origin}
           selectedDealId={selectedDealId}
           onSelectDeal={onSelectDeal}
+          onViewDetails={onViewDetails}
           onInitializationError={handleInitializationError}
         />
       )}
