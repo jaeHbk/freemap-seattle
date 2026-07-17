@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import type { Deal } from "../components/deals.ts";
 import {
   distanceMiles,
+  isInSeattleArea,
   parseCensusLocation,
   resolveNeighborhood,
   sortDealsByDistance,
@@ -64,6 +65,19 @@ test("sortDealsByDistance places mapped nearest deals first", () => {
     far,
     online,
   ]);
+});
+
+test("isInSeattleArea gates coordinates on every bound", () => {
+  // Inside, and on each inclusive edge.
+  assert.equal(isInSeattleArea(47.6062, -122.3321), true);
+  assert.equal(isInSeattleArea(47.45, -122.46), true);
+  assert.equal(isInSeattleArea(47.75, -122.2), true);
+  // Just past each bound, and clearly remote (Portland) — the "Near me" gap.
+  assert.equal(isInSeattleArea(47.44, -122.3), false);
+  assert.equal(isInSeattleArea(47.76, -122.3), false);
+  assert.equal(isInSeattleArea(47.6, -122.47), false);
+  assert.equal(isInSeattleArea(47.6, -122.19), false);
+  assert.equal(isInSeattleArea(45.5231, -122.6765), false);
 });
 
 test("parseCensusLocation accepts Seattle matches and rejects remote matches", () => {

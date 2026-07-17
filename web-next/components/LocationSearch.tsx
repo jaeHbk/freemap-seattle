@@ -9,7 +9,11 @@ import {
   X,
 } from "lucide-react";
 
-import { SEATTLE_NEIGHBORHOODS, type SearchOrigin } from "@/lib/location";
+import {
+  isInSeattleArea,
+  SEATTLE_NEIGHBORHOODS,
+  type SearchOrigin,
+} from "@/lib/location";
 
 interface LocationSearchProps {
   origin: SearchOrigin | null;
@@ -72,6 +76,15 @@ export function LocationSearch({
     setError(null);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
+        // Gate device coords by the same Seattle bounds the address path enforces;
+        // an out-of-area origin would center the map on an empty region with no pins.
+        if (!isInSeattleArea(coords.latitude, coords.longitude)) {
+          setError(
+            "You appear to be outside the Seattle area. Search a neighborhood or address instead.",
+          );
+          setPending(null);
+          return;
+        }
         onOriginChange({
           lat: coords.latitude,
           lng: coords.longitude,
