@@ -88,10 +88,15 @@ def test_committed_config_toml_loads_and_sources_reachable():
     assert load_minimum_pins("config.toml") == {"places_brand": 1}
 
 
-def test_committed_brand_offers_are_scoped_food_deals():
+def test_committed_brand_offers_are_scoped_and_cover_multiple_brands():
     cfg = load_config("config.toml")
-    deals = [classify(raw) for raw in places_brand.fetch(cfg)]
+    raw_deals = places_brand.fetch(cfg)
+    deals = [classify(raw) for raw in raw_deals]
 
-    assert deals
+    assert len(deals) == 40
+    assert {
+        raw.raw["brand"] for raw in raw_deals
+    } == {"Chipotle", "MOD Pizza", "Starbucks", "Ulta Beauty"}
     assert {deal.deal_type for deal in deals} <= {"free", "bogo"}
-    assert {deal.category for deal in deals} == {"food"}
+    assert {deal.category for deal in deals} == {"food", "retail"}
+    assert all(deal.placement == "physical" for deal in deals)

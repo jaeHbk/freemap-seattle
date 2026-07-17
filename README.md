@@ -31,7 +31,7 @@ The scraper and web app communicate only through the database.
 
 | Source | Production role | Health policy |
 |---|---|---|
-| `places_brand` | Official Chipotle Rewards and MOD Sunday offers expanded to current Seattle storefront pins | Required |
+| `places_brand` | Official Chipotle, MOD, Starbucks, and Ulta Free/BOGO rewards expanded to current Seattle storefront pins | Required |
 | `reddit` | Free/BOGO posts from `r/Seattle`, filtered with word-boundary matching | Optional because runner IPs may be rate-limited |
 
 The `chains`, `slickdeals`, and `local` parsers remain implemented and tested,

@@ -43,7 +43,10 @@ def classify(raw: RawDeal) -> Deal:
         category = "food"
     elif any(k in text for k in ("event", "show", "concert", "festival")):
         category = "event"
-    elif any(k in text for k in ("store", "retail", "clothing", "shoes")):
+    elif any(
+        k in text
+        for k in ("store", "retail", "clothing", "shoes", "beauty", "cosmetic")
+    ):
         category = "retail"
     else:
         category = "other"

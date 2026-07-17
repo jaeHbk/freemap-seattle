@@ -2,8 +2,9 @@
 metro = "seattle"
 db_path = "db/deals.db"
 user_agent = "FreeMapSeattle/1.0 (contact: freemap@example.com)"
-# places_brand supplies the verified physical Free/BOGO pins. Reddit is scoped
-# to Free/BOGO posts but may be rate-limited by source IP. The broader
+# places_brand supplies verified physical Free/BOGO pins from current official
+# offer terms and Seattle store directories. Reddit is scoped to Free/BOGO
+# posts but may be rate-limited by source IP. The broader
 # chains/slickdeals/local parsers remain available but are disabled in production.
 sources_enabled = ["places_brand", "reddit"]
 
@@ -106,4 +107,52 @@ locations = [
   "2800 SW Barton St, Seattle, WA 98126",
   "305 Harrison St Armory Building Ste 221, Seattle, WA 98109",
   "6010 15th Ave NW, Seattle, WA 98107",
+]
+
+# Verified 2026-07-16 against Starbucks Rewards terms (effective 2026-03-10).
+# Locations are current company-operated Seattle stores whose official locator
+# lists "Redeem Rewards"; restricted-access hospital and office stores are
+# intentionally excluded.
+[[sources.places_brand.brands]]
+id = "starbucks-rewards-birthday-drink"
+name = "Starbucks"
+offer = "Free standard-menu-size birthday drink for eligible Starbucks Rewards members after one Star-earning purchase"
+url = "https://www.starbucks.com/rewards/terms/"
+locations = [
+  "999 3rd Ave, Seattle, WA 98104",
+  "701 5th Ave, Seattle, WA 98104",
+  "601 Union St, Seattle, WA 98101",
+  "1101 Alaskan Way, Seattle, WA 98101",
+  "1524 7th Ave, Seattle, WA 98101",
+  "1912 Pike Pl, Seattle, WA 98101",
+  "2011 7th Ave, Seattle, WA 98121",
+  "800 12th Ave, Seattle, WA 98122",
+  "442 Terry Ave N, Seattle, WA 98109",
+  "121 Lakeside Ave, Seattle, WA 98122",
+  "1144 Elliott Ave W, Seattle, WA 98119",
+  "2135 Queen Anne Ave N, Seattle, WA 98109",
+  "4101 SW Admiral Way, Seattle, WA 98116",
+  "4000 E Madison St, Seattle, WA 98112",
+  "4408 Fauntleroy Way SW, Seattle, WA 98126",
+  "3300 W McGraw St, Seattle, WA 98199",
+  "601 S Michigan St, Seattle, WA 98108",
+  "4634 26th Ave NE, Seattle, WA 98105",
+  "999 Leary Way NW, Seattle, WA 98107",
+  "5221 15th Ave NW, Seattle, WA 98107",
+  "6310 Martin Luther King Jr Way S, Seattle, WA 98118",
+  "6501 California Ave SW, Seattle, WA 98136",
+  "7100 E Green Lake Dr N, Seattle, WA 98115",
+]
+
+# Verified 2026-07-16 against Ulta's current Birthday Rewards page and official
+# Seattle store pages. In-store redemption requires the member offer; gifts are
+# available while supplies last.
+[[sources.places_brand.brands]]
+id = "ulta-rewards-birthday-gift"
+name = "Ulta Beauty"
+offer = "Free birthday beauty gift for eligible Ulta Beauty Rewards members, while supplies last"
+url = "https://www.ulta.com/rewards/birthday-gift"
+locations = [
+  "13201 Aurora Ave N, Seattle, WA 98133",
+  "2600 SW Barton St Ste B18, Seattle, WA 98126",
 ]
