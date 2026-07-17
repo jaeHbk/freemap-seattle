@@ -30,6 +30,12 @@ import {
   sortDealsByDistance,
   type SearchOrigin,
 } from "@/lib/location";
+import {
+  parseUrlState,
+  serializeUrlState,
+  type AppUrlState,
+  type MapViewport,
+} from "@/lib/url-state";
 import { cn } from "@/lib/utils";
 
 type LoadState =
@@ -54,11 +60,66 @@ export default function Home() {
     null,
   );
   const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const [mapViewport, setMapViewport] = React.useState<MapViewport | null>(
+    null,
+  );
+  const [urlReady, setUrlReady] = React.useState(false);
+
+  const applyUrlState = React.useCallback((next: AppUrlState) => {
+    setView(next.view);
+    setFilters(next.filters);
+    setOrigin(next.origin);
+    setSelectedDealId(next.selectedDealId);
+    setDetailsOpen(next.detailsOpen);
+    setMapViewport(next.mapViewport);
+  }, []);
+
+  // Read the URL after hydration so server and client render the same initial
+  // shell. popstate restores links navigated with browser back/forward.
+  React.useEffect(() => {
+    const restore = () => {
+      applyUrlState(parseUrlState(new URLSearchParams(window.location.search)));
+      setUrlReady(true);
+    };
+    restore();
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [applyUrlState]);
+
+  React.useEffect(() => {
+    if (!urlReady) return;
+    const params = serializeUrlState(
+      {
+        view,
+        filters,
+        origin,
+        selectedDealId,
+        detailsOpen,
+        mapViewport,
+      },
+      new URLSearchParams(window.location.search),
+    );
+    const query = params.toString();
+    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState(window.history.state, "", nextUrl);
+    }
+  }, [
+    detailsOpen,
+    filters,
+    mapViewport,
+    origin,
+    selectedDealId,
+    urlReady,
+    view,
+  ]);
 
   // Fetch deals whenever a SERVER-side filter changes. include_stale is the
   // server's source of truth (the old app's bug was refiltering only in memory);
   // type/category/placement are sent too so the payload stays small.
   React.useEffect(() => {
+    if (!urlReady) return;
     const ctrl = new AbortController();
     // Synchronizing UI state with an external fetch is the intended use of an
     // effect; the loading flag is set once per request, not in a render loop.
@@ -82,7 +143,7 @@ export default function Home() {
         });
       });
     return () => ctrl.abort();
-  }, [filters, reloadKey]);
+  }, [filters, reloadKey, urlReady]);
 
   // Freshness badge — best-effort, never blocks the UI.
   React.useEffect(() => {
@@ -118,13 +179,49 @@ export default function Home() {
     (dealId: string) => setSelectedDealId(dealId),
     [],
   );
-  const showDealOnMap = React.useCallback((dealId: string) => {
-    setSelectedDealId(dealId);
-    setView("map");
-  }, []);
+  const showDealOnMap = React.useCallback(
+    (dealId: string) => {
+      const deal = deals.find((candidate) => String(candidate.id) === dealId);
+      if (deal?.lat != null && deal.lng != null) {
+        const lat = deal.lat;
+        const lng = deal.lng;
+        setMapViewport((current) => ({
+          lat,
+          lng,
+          zoom: Math.max(current?.zoom ?? 15, 15),
+        }));
+      }
+      setSelectedDealId(dealId);
+      setView("map");
+    },
+    [deals],
+  );
   const viewDealDetails = React.useCallback((dealId: string) => {
     setSelectedDealId(dealId);
     setDetailsOpen(true);
+  }, []);
+  const changeOrigin = React.useCallback((next: SearchOrigin | null) => {
+    setOrigin(next);
+    if (next) {
+      setMapViewport((current) => ({
+        lat: next.lat,
+        lng: next.lng,
+        zoom: Math.max(current?.zoom ?? 13, 13),
+      }));
+    }
+  }, []);
+  const changeMapViewport = React.useCallback((next: MapViewport) => {
+    setMapViewport((current) => {
+      if (
+        current &&
+        Math.abs(current.lat - next.lat) < 0.00001 &&
+        Math.abs(current.lng - next.lng) < 0.00001 &&
+        Math.abs(current.zoom - next.zoom) < 0.01
+      ) {
+        return current;
+      }
+      return next;
+    });
   }, []);
 
   return (
@@ -200,7 +297,7 @@ export default function Home() {
         {/* Main panel. The active view is a real tabpanel: id + aria-labelledby
             back to its tab + tabIndex so keyboard users can land on it. */}
         <main id="main" className="flex min-w-0 flex-1 flex-col">
-          <LocationSearch origin={origin} onOriginChange={setOrigin} />
+          <LocationSearch origin={origin} onOriginChange={changeOrigin} />
           {state.kind === "error" ? (
             <ErrorPanel message={state.message} onRetry={() => setReloadKey((k) => k + 1)} />
           ) : state.kind === "loading" ? (
@@ -217,8 +314,10 @@ export default function Home() {
                 deals={mapDeals}
                 origin={origin}
                 selectedDealId={selectedDealId}
+                viewport={mapViewport}
                 onSelectDeal={selectDeal}
                 onViewDetails={viewDealDetails}
+                onViewportChange={changeMapViewport}
                 onClearFilters={hasActiveFilters ? clearFilters : undefined}
               />
             </section>

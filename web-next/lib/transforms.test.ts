@@ -15,7 +15,8 @@ import type { Deal } from "./db.ts";
 function mk(p: Partial<Deal>): Deal {
   return {
     id: 1, source: "s", source_id: "x", dedup_key: null, title: "t", url: "u",
-    description: null, deal_type: "free", category: "food", placement: "online",
+    description: null, eligibility: null, redemption: null, verified_at: null,
+    deal_type: "free", category: "food", placement: "online",
     lat: null, lng: null, raw_location: null, geocode_status: "n/a",
     posted_at: null, expires_at: null, first_seen: null, last_seen: null,
     alt_urls: [], ...p,
