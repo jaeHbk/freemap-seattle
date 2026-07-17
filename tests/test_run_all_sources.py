@@ -102,10 +102,17 @@ def test_run_all_one_source_throws_others_still_upsert(monkeypatch):
 
     summary = run_all(_config(), conn, geocoder, NOW, sources=injected)
 
-    # Canonical return shape: one entry per source with the three keys.
+    # Canonical return shape: one telemetry entry per source.
     assert set(summary) == {"reddit", "chains", "slickdeals", "local"}
     for entry in summary.values():
-        assert set(entry) == {"deals_found", "upserted", "errors"}
+        assert set(entry) == {
+            "deals_found",
+            "upserted",
+            "map_pins",
+            "geocode_failures",
+            "duration_ms",
+            "errors",
+        }
 
     # The throwing source is recorded as errored, 0 upserted — never aborts the run.
     assert summary["reddit"]["errors"] is not None

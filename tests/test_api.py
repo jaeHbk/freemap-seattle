@@ -121,6 +121,16 @@ def test_meta_shape_counts_and_last_scrape(client):
     assert by_source["slickdeals"]["last_successful_scrape"] is None
     # deal_count per source reflects rows in deals table
     assert by_source["reddit"]["deal_count"] == 3  # ids 1, 3, 6 are reddit
+    assert by_source["reddit"]["latest_run"] == {
+        "finished_at": "2026-06-18T11:01:00",
+        "status": "ok",
+        "deals_found": 5,
+        "deals_upserted": None,
+        "map_pins": None,
+        "geocode_failures": None,
+        "duration_ms": None,
+    }
+    assert by_source["slickdeals"]["latest_run"]["status"] == "error"
 
 
 def test_static_index_served_at_root(client):

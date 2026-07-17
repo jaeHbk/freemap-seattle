@@ -1,5 +1,9 @@
 from scrapers.config import Config, load_config
-from scrapers.health import load_health_baseline, load_minimum_pins
+from scrapers.health import (
+    load_health_baseline,
+    load_minimum_deals,
+    load_minimum_pins,
+)
 from scrapers.pipeline import classify
 from scrapers.sources import places_brand
 
@@ -85,7 +89,8 @@ def test_committed_config_toml_loads_and_sources_reachable():
     expected, optional = load_health_baseline("config.toml")
     assert expected == ["places_brand"]
     assert optional == ["reddit"]
-    assert load_minimum_pins("config.toml") == {"places_brand": 1}
+    assert load_minimum_deals("config.toml") == {"places_brand": 40}
+    assert load_minimum_pins("config.toml") == {"places_brand": 38}
 
 
 def test_committed_brand_offers_are_scoped_and_cover_multiple_brands():

@@ -45,5 +45,9 @@ CREATE TABLE IF NOT EXISTS scrape_runs (
     started_at      TIMESTAMP,
     finished_at     TIMESTAMP,
     deals_found     INTEGER,
+    deals_upserted  INTEGER,
+    map_pins        INTEGER,
+    geocode_failures INTEGER,
+    duration_ms     INTEGER,
     errors          TEXT
 );

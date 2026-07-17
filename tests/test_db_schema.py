@@ -58,13 +58,29 @@ def test_init_db_migrates_existing_deals_table():
         "dedup_key TEXT, lat REAL, lng REAL"
         ")"
     )
+    legacy.execute(
+        "CREATE TABLE scrape_runs ("
+        "id INTEGER PRIMARY KEY, source TEXT NOT NULL, deals_found INTEGER, "
+        "errors TEXT"
+        ")"
+    )
 
     db.init_db(legacy)
 
-    columns = {
+    deal_columns = {
         row[1] for row in legacy.execute("PRAGMA table_info(deals)").fetchall()
     }
-    assert {"eligibility", "redemption", "verified_at"} <= columns
+    run_columns = {
+        row[1]
+        for row in legacy.execute("PRAGMA table_info(scrape_runs)").fetchall()
+    }
+    assert {"eligibility", "redemption", "verified_at"} <= deal_columns
+    assert {
+        "deals_upserted",
+        "map_pins",
+        "geocode_failures",
+        "duration_ms",
+    } <= run_columns
     legacy.close()
 
 
@@ -105,8 +121,42 @@ def test_upsert_persists_structured_deal_terms(conn):
 def test_record_run_writes_one_row(conn):
     started = datetime(2026, 6, 18, 10, 0, 0)
     finished = datetime(2026, 6, 18, 10, 0, 5)
-    db.record_run(conn, "reddit", started, finished, 3, None)
+    db.record_run(
+        conn,
+        "reddit",
+        started,
+        finished,
+        3,
+        None,
+        deals_upserted=2,
+        map_pins=1,
+        geocode_failures=1,
+        duration_ms=5000,
+    )
     row = conn.execute("SELECT * FROM scrape_runs").fetchone()
     assert row["source"] == "reddit"
     assert row["deals_found"] == 3
+    assert row["deals_upserted"] == 2
+    assert row["map_pins"] == 1
+    assert row["geocode_failures"] == 1
+    assert row["duration_ms"] == 5000
     assert row["errors"] is None
+
+
+def test_collect_source_run_metrics_counts_only_rows_from_current_run(conn):
+    now = datetime(2026, 6, 18, 12, 0, 0)
+    old = datetime(2026, 6, 18, 10, 0, 0)
+    mapped = _deal(source_id="mapped")
+    failed = _deal(source_id="failed")
+    failed.lat = None
+    failed.lng = None
+    failed.geocode_status = "failed"
+    old_mapped = _deal(source_id="old")
+
+    db.upsert_deals(conn, [mapped, failed], now)
+    db.upsert_deals(conn, [old_mapped], old)
+
+    assert db.collect_source_run_metrics(conn, "reddit", now) == {
+        "map_pins": 1,
+        "geocode_failures": 1,
+    }

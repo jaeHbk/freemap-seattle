@@ -10,10 +10,10 @@ on:
     - cron: "0 */12 * * *"
   workflow_dispatch: {}
 
-# Least privilege: this job only reads the repo and talks to Turso over HTTP.
-# It never pushes commits or touches the GH API.
+# The workflow reads code and maintains one operational alert issue.
 permissions:
   contents: read
+  issues: write
 
 # Never let two scrapes overlap (a manual dispatch on top of a cron run, or a
 # slow run still going when the next cron fires). Let the in-flight one finish.
@@ -45,7 +45,19 @@ jobs:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-        run: python -m scrapers.run
+        run: |
+          set +e
+          output=$(python -m scrapers.run 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          {
+            echo "## Scrape telemetry"
+            echo '```text'
+            printf '%s\n' "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
       - name: Source health check
         # continue-on-error left at its default (false): a sick expected-healthy
@@ -54,4 +66,71 @@ jobs:
           FREEMAP_REQUIRE_TURSO: "1"
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-        run: python -m scrapers.health
+        run: |
+          set +e
+          output=$(python -m scrapers.health 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          {
+            echo "## Coverage health"
+            echo '```text'
+            printf '%s\n' "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Publish scrape alert
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const title = "[FreeMap] Scheduled scrape unhealthy";
+            const runUrl =
+              `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const openIssues = await github.paginate(
+              github.rest.issues.listForRepo,
+              { owner, repo, state: "open", per_page: 100 },
+            );
+            const existing = openIssues.find(
+              issue => !issue.pull_request && issue.title === title,
+            );
+
+            if (process.env.JOB_STATUS === "failure") {
+              const body = [
+                "The scheduled FreeMap scrape or coverage health gate failed.",
+                "",
+                `Latest failed run: [GitHub Actions run ${context.runId}](${runUrl})`,
+                "",
+                "Check the run summary for per-source found, upserted, pin, " +
+                  "geocode-failure, and duration telemetry.",
+              ].join("\n");
+              if (existing) {
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: existing.number,
+                  body,
+                });
+              } else {
+                await github.rest.issues.create({ owner, repo, title, body });
+              }
+            } else if (process.env.JOB_STATUS === "success" && existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body: `Recovered in [GitHub Actions run ${context.runId}](${runUrl}).`,
+              });
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                state: "closed",
+                state_reason: "completed",
+              });
+            }

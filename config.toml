@@ -12,16 +12,18 @@ sources_enabled = ["places_brand", "reddit"]
 stale_after_hours = 24
 
 # Source-health baseline for `python -m scrapers.health` (run post-scrape in CI).
-# `expected` sources MUST have a latest scrape_runs row that neither errored nor
-# found 0 deals, or the check exits non-zero. `optional` sources are reported but
-# do not fail the workflow; Reddit belongs there because a live IP may be
-# rate-limited even though its browser-UA fetch path is functional.
-# `minimum_pins` additionally requires that many freshly geocoded map pins from a
-# source this cycle, so a geocoder outage cannot report a healthy empty map.
+# `expected` sources MUST have a recent successful scrape_runs row meeting the
+# configured coverage floors. `optional` sources are reported but do not fail
+# the workflow; Reddit belongs there because a live IP may be rate-limited even
+# though its browser-UA fetch path is functional.
+# Coverage floors match the committed 40-location verified inventory. Two
+# addresses currently fail the keyless Census geocoder, so 38 map pins is the
+# accepted floor; any additional loss alerts operators.
 [health]
 expected = ["places_brand"]
 optional = ["reddit"]
-minimum_pins = { places_brand = 1 }
+minimum_deals = { places_brand = 40 }
+minimum_pins = { places_brand = 38 }
 
 [geocoder]
 # provider: "census" (keyless US Census geocoder, the default — works unattended)

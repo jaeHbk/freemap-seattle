@@ -33,12 +33,12 @@ The enabled source set is:
   Free/BOGO rows and geocoded map pins.
 - `reddit`: optional; may produce zero rows or be rate-limited.
 
-The scrape command prints `found`, `upserted`, and `ok` or `ERROR` for each
-source. The health command must print `[ok] places_brand` with a nonzero `pins`
-count and finish with `HEALTHY`. Reddit is reported as `[opt]` and does not
-control the exit code.
+The scrape command prints `found`, `upserted`, `pins`, `geocode_failed`,
+`duration_ms`, and `ok` or `ERROR` for each source. The health command must
+print `[ok] places_brand` with `found=40`, at least `pins=38`, and finish with
+`HEALTHY`. Reddit is reported as `[opt]` and does not control the exit code.
 
-Any missing, errored, stale, zero-result, or zero-pin `places_brand` run is a
+Any missing, errored, stale, sub-40-deal, or sub-38-pin `places_brand` run is a
 failure.
 
 ## Verify rows
@@ -54,6 +54,7 @@ For Turso:
 ```bash
 turso db shell freemap \
   "SELECT source, COUNT(*) AS deals FROM deals GROUP BY source; \
-   SELECT source, deals_found, errors, finished_at FROM scrape_runs \
+   SELECT source, deals_found, deals_upserted, map_pins, geocode_failures, \
+   duration_ms, errors, finished_at FROM scrape_runs \
    ORDER BY id DESC LIMIT 4;"
 ```

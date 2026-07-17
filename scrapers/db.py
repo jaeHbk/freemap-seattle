@@ -13,6 +13,12 @@ _DEAL_COLUMN_MIGRATIONS = {
     "redemption": "TEXT",
     "verified_at": "TIMESTAMP",
 }
+_SCRAPE_RUN_COLUMN_MIGRATIONS = {
+    "deals_upserted": "INTEGER",
+    "map_pins": "INTEGER",
+    "geocode_failures": "INTEGER",
+    "duration_ms": "INTEGER",
+}
 
 
 # --- libSQL/Turso adapter ---------------------------------------------------
@@ -168,10 +174,21 @@ def init_db(conn: sqlite3.Connection) -> None:
 
 def ensure_schema_migrations(conn) -> None:
     """Add nullable columns introduced after the initial production schema."""
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(deals)").fetchall()}
+    existing = {
+        row[1] for row in conn.execute("PRAGMA table_info(deals)").fetchall()
+    }
     for name, sql_type in _DEAL_COLUMN_MIGRATIONS.items():
         if name not in existing:
             conn.execute(f"ALTER TABLE deals ADD COLUMN {name} {sql_type}")
+
+    existing_runs = {
+        row[1] for row in conn.execute("PRAGMA table_info(scrape_runs)").fetchall()
+    }
+    for name, sql_type in _SCRAPE_RUN_COLUMN_MIGRATIONS.items():
+        if name not in existing_runs:
+            conn.execute(
+                f"ALTER TABLE scrape_runs ADD COLUMN {name} {sql_type}"
+            )
 
 
 def _to_db(value):
@@ -262,16 +279,63 @@ def record_run(
     finished_at,
     deals_found: int,
     errors: str | None,
+    *,
+    deals_upserted: int = 0,
+    map_pins: int = 0,
+    geocode_failures: int = 0,
+    duration_ms: int | None = None,
 ) -> None:
     """Write one row to scrape_runs for a single source's run."""
     conn.execute(
         """
-        INSERT INTO scrape_runs (source, started_at, finished_at, deals_found, errors)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO scrape_runs (
+            source, started_at, finished_at, deals_found, deals_upserted,
+            map_pins, geocode_failures, duration_ms, errors
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (source, _to_db(started_at), _to_db(finished_at), deals_found, errors),
+        (
+            source,
+            _to_db(started_at),
+            _to_db(finished_at),
+            deals_found,
+            deals_upserted,
+            map_pins,
+            geocode_failures,
+            duration_ms,
+            errors,
+        ),
     )
     conn.commit()
+
+
+def collect_source_run_metrics(conn, source: str, observed_at) -> dict[str, int]:
+    """Count mapped and failed-geocode rows touched by one source run."""
+    observed_at = _to_db(observed_at)
+    row = conn.execute(
+        """
+        SELECT
+            SUM(
+                CASE WHEN placement = 'physical'
+                           AND geocode_status = 'ok'
+                           AND lat IS NOT NULL
+                           AND lng IS NOT NULL
+                     THEN 1 ELSE 0 END
+            ) AS map_pins,
+            SUM(
+                CASE WHEN placement = 'physical'
+                           AND geocode_status = 'failed'
+                     THEN 1 ELSE 0 END
+            ) AS geocode_failures
+        FROM deals
+        WHERE source = ? AND last_seen = ?
+        """,
+        (source, observed_at),
+    ).fetchone()
+    return {
+        "map_pins": int(row["map_pins"] or 0),
+        "geocode_failures": int(row["geocode_failures"] or 0),
+    }
 
 
 def fetch_all_deals(conn) -> list:

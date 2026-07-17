@@ -195,13 +195,64 @@ def meta(conn: sqlite3.Connection = Depends(get_conn)):
     ).fetchall()
     last_ok = {r["source"]: r["last_ok"] for r in run_rows}
 
-    sources = sorted(set(counts) | set(last_ok))
+    try:
+        latest_rows = conn.execute(
+            """
+            SELECT s.source, s.finished_at, s.deals_found, s.deals_upserted,
+                   s.map_pins, s.geocode_failures, s.duration_ms, s.errors
+            FROM scrape_runs s
+            JOIN (
+                SELECT source, MAX(id) AS latest_id
+                FROM scrape_runs
+                GROUP BY source
+            ) latest
+              ON s.source = latest.source AND s.id = latest.latest_id
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        # Allows the read app to deploy before the additive telemetry migration.
+        latest_rows = conn.execute(
+            """
+            SELECT s.source, s.finished_at, s.deals_found, s.errors
+            FROM scrape_runs s
+            JOIN (
+                SELECT source, MAX(id) AS latest_id
+                FROM scrape_runs
+                GROUP BY source
+            ) latest
+              ON s.source = latest.source AND s.id = latest.latest_id
+            """
+        ).fetchall()
+
+    latest_runs = {}
+    for row in latest_rows:
+        keys = set(row.keys())
+        latest_runs[row["source"]] = {
+            "finished_at": row["finished_at"],
+            "status": "error" if row["errors"] is not None else "ok",
+            "deals_found": row["deals_found"],
+            "deals_upserted": (
+                row["deals_upserted"] if "deals_upserted" in keys else None
+            ),
+            "map_pins": row["map_pins"] if "map_pins" in keys else None,
+            "geocode_failures": (
+                row["geocode_failures"]
+                if "geocode_failures" in keys
+                else None
+            ),
+            "duration_ms": (
+                row["duration_ms"] if "duration_ms" in keys else None
+            ),
+        }
+
+    sources = sorted(set(counts) | set(last_ok) | set(latest_runs))
     return {
         "sources": [
             {
                 "source": s,
                 "deal_count": counts.get(s, 0),
                 "last_successful_scrape": last_ok.get(s),
+                "latest_run": latest_runs.get(s),
             }
             for s in sources
         ]

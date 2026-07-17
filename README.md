@@ -20,8 +20,12 @@ GitHub Actions (12h cron) --writes--> Turso <--reads-- Next.js on Vercel
 - `.github/workflows/scrape.yml` runs the scraper and health gate every 12 hours.
   `FREEMAP_REQUIRE_TURSO=1` prevents a missing secret from silently writing to
   an ephemeral runner database.
-- The health gate requires at least one pin touched by the current
-  `places_brand` scrape, so a geocoder outage cannot report a healthy empty map.
+- Each source run records found/upserted counts, mapped pins, geocode failures,
+  duration, completion time, and error status.
+- The health gate requires all 40 verified `places_brand` deals and at least 38
+  current map pins. A partial source or geocoder regression cannot stay green.
+- A failed scheduled scrape opens or updates one GitHub issue; the next healthy
+  run comments on and closes it.
 
 The scraper and web app communicate only through the database.
 
@@ -70,7 +74,7 @@ The read API is available under the Next.js app:
 - `GET /api/deals?type=&category=&placement=&bbox=&include_stale=`
 - `GET /api/deals/{id}`
 - `GET /api/geocode?q=` for Seattle neighborhood and address lookup
-- `GET /api/meta`
+- `GET /api/meta` for current source counts, freshness, and latest-run telemetry
 
 `bbox` uses `minLng,minLat,maxLng,maxLat` and is pushed into SQL. The current UI
 loads the small map payload once and lets MapLibre cluster and cull offscreen
