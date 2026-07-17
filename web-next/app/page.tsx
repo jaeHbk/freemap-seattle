@@ -290,7 +290,12 @@ export default function Home() {
               <SlidersHorizontal className="size-4 text-primary" />
               Filters
             </p>
-            <Filters state={filters} onChange={setFilters} count={visibleCount} />
+            <Filters
+              state={filters}
+              onChange={setFilters}
+              idPrefix="desktop"
+              count={visibleCount}
+            />
           </div>
         </aside>
 
@@ -369,7 +374,12 @@ export default function Home() {
                   <X className="size-4" />
                 </Drawer.Close>
               </div>
-              <Filters state={filters} onChange={setFilters} count={visibleCount} />
+              <Filters
+                state={filters}
+                onChange={setFilters}
+                idPrefix="mobile"
+                count={visibleCount}
+              />
             </Drawer.Popup>
           </Drawer.Viewport>
         </Drawer.Portal>

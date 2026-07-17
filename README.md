@@ -105,11 +105,13 @@ node --test web/*.test.js
 cd web-next
 npm test
 npm run lint
+npm run test:e2e
 npm run build
 ```
 
 Source tests use recorded fixtures and mocked HTTP calls. They do not depend on
-live websites.
+live websites. Playwright browser tests mock API and map-provider boundaries
+while exercising the real UI in Chromium.
 
 ## Deploy and operate
 
