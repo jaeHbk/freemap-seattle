@@ -6,6 +6,7 @@ import {
   Clock,
   ExternalLink,
   Globe,
+  Map,
   MapPinned,
   MapPinOff,
   SearchX,
@@ -18,6 +19,10 @@ import { cn } from "@/lib/utils";
 import { safeHttpUrl } from "@/components/deals";
 import type { Deal } from "@/components/deals";
 import { TYPE_STYLE, STATUS_LABEL } from "@/components/deal-style";
+import {
+  dealDistanceMiles,
+  type SearchOrigin,
+} from "@/lib/location";
 
 function locationPresentation(deal: Deal) {
   if (deal.placement === "online") {
@@ -60,19 +65,49 @@ function ShapeGlyph({ shape, color }: { shape: string; color: string }) {
   return <span className={cn(base, "rounded-full")} style={{ background: color }} aria-hidden />;
 }
 
-function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: boolean | null }) {
+interface DealCardProps {
+  deal: Deal;
+  index: number;
+  reduce: boolean | null;
+  origin: SearchOrigin | null;
+  selected: boolean;
+  onSelectDeal: (dealId: string) => void;
+  onShowOnMap: (dealId: string) => void;
+}
+
+function DealCard({
+  deal,
+  index,
+  reduce,
+  origin,
+  selected,
+  onSelectDeal,
+  onShowOnMap,
+}: DealCardProps) {
   const ts = TYPE_STYLE[deal.deal_type] ?? TYPE_STYLE.other;
   const stale = deal.status === "stale";
   const href = safeHttpUrl(deal.url);
   const location = locationPresentation(deal);
+  const distance = dealDistanceMiles(deal, origin);
+  const dealId = String(deal.id);
+  const mapped = deal.lat != null && deal.lng != null;
 
   return (
     <motion.li
+      data-deal-id={dealId}
+      aria-current={selected ? "true" : undefined}
+      onFocusCapture={() => onSelectDeal(dealId)}
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: Math.min(index * 0.03, 0.3), ease: [0.22, 1, 0.36, 1] }}
     >
-      <TextureCard className={cn("h-full transition-opacity", stale && "opacity-65")}>
+      <TextureCard
+        className={cn(
+          "h-full transition-[opacity,box-shadow,border-color]",
+          stale && "opacity-65",
+          selected && "border-primary/60 ring-2 ring-primary/20",
+        )}
+      >
         <TextureCardContent className="flex h-full flex-col gap-3 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <span
@@ -113,6 +148,11 @@ function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: 
               <span className="inline-flex items-center gap-1.5 font-medium text-foreground/75">
                 {location.icon}
                 {location.label}
+                {distance != null && (
+                  <span className="tabular-nums text-muted-foreground">
+                    · {distance < 0.1 ? "<0.1" : distance.toFixed(1)} mi
+                  </span>
+                )}
               </span>
               {location.detail && (
                 <span className="line-clamp-2 leading-snug">
@@ -120,22 +160,34 @@ function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: 
                 </span>
               )}
             </span>
-            {href ? (
-              <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-md font-semibold text-primary transition-colors hover:text-primary/80",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                )}
-              >
-                View deal
-                <ExternalLink className="size-3.5" />
-              </a>
-            ) : (
-              <span className="italic text-muted-foreground/70">link unavailable</span>
-            )}
+            <span className="flex shrink-0 flex-col items-end gap-2">
+              {mapped && (
+                <button
+                  type="button"
+                  onClick={() => onShowOnMap(dealId)}
+                  className="inline-flex items-center gap-1 rounded-md font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Map className="size-3.5" />
+                  Show on map
+                </button>
+              )}
+              {href ? (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-md font-semibold text-primary transition-colors hover:text-primary/80",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  )}
+                >
+                  View deal
+                  <ExternalLink className="size-3.5" />
+                </a>
+              ) : (
+                <span className="italic text-muted-foreground/70">link unavailable</span>
+              )}
+            </span>
           </div>
         </TextureCardContent>
       </TextureCard>
@@ -145,11 +197,35 @@ function DealCard({ deal, index, reduce }: { deal: Deal; index: number; reduce: 
 
 interface DealListProps {
   deals: Deal[];
+  origin: SearchOrigin | null;
+  selectedDealId: string | null;
+  onSelectDeal: (dealId: string) => void;
+  onShowOnMap: (dealId: string) => void;
   onClearFilters: () => void;
 }
 
-export function DealList({ deals, onClearFilters }: DealListProps) {
+export function DealList({
+  deals,
+  origin,
+  selectedDealId,
+  onSelectDeal,
+  onShowOnMap,
+  onClearFilters,
+}: DealListProps) {
   const reduce = useReducedMotion();
+  const listRef = React.useRef<HTMLUListElement>(null);
+
+  React.useEffect(() => {
+    if (!selectedDealId) return;
+    const selected = Array.from(listRef.current?.children ?? []).find(
+      (element) =>
+        (element as HTMLElement).dataset.dealId === selectedDealId,
+    );
+    selected?.scrollIntoView({
+      block: "nearest",
+      behavior: reduce ? "auto" : "smooth",
+    });
+  }, [reduce, selectedDealId]);
 
   if (deals.length === 0) {
     return (
@@ -175,9 +251,21 @@ export function DealList({ deals, onClearFilters }: DealListProps) {
   }
 
   return (
-    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <ul
+      ref={listRef}
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+    >
       {deals.map((d, i) => (
-        <DealCard key={d.id} deal={d} index={i} reduce={reduce} />
+        <DealCard
+          key={d.id}
+          deal={d}
+          index={i}
+          reduce={reduce}
+          origin={origin}
+          selected={String(d.id) === selectedDealId}
+          onSelectDeal={onSelectDeal}
+          onShowOnMap={onShowOnMap}
+        />
       ))}
     </ul>
   );

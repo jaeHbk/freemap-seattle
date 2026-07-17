@@ -16,6 +16,7 @@ import Link from "next/link";
 import { Filters } from "@/components/Filters";
 import { DealList } from "@/components/DealList";
 import { DealMap } from "@/components/DealMap";
+import { LocationSearch } from "@/components/LocationSearch";
 import { ViewTabs, type ViewValue, TAB_IDS, PANEL_IDS } from "@/components/ViewTabs";
 import {
   buildQuery,
@@ -24,6 +25,10 @@ import {
   EMPTY_FILTERS,
 } from "@/components/deals";
 import type { Deal, FilterState } from "@/components/deals";
+import {
+  sortDealsByDistance,
+  type SearchOrigin,
+} from "@/lib/location";
 import { cn } from "@/lib/utils";
 
 type LoadState =
@@ -43,6 +48,10 @@ export default function Home() {
   const [freshness, setFreshness] = React.useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [reloadKey, setReloadKey] = React.useState(0);
+  const [origin, setOrigin] = React.useState<SearchOrigin | null>(null);
+  const [selectedDealId, setSelectedDealId] = React.useState<string | null>(
+    null,
+  );
 
   // Fetch deals whenever a SERVER-side filter changes. include_stale is the
   // server's source of truth (the old app's bug was refiltering only in memory);
@@ -91,13 +100,24 @@ export default function Home() {
   }, []);
 
   const mapDeals = React.useMemo(() => dealsForMap(deals, filters), [deals, filters]);
-  const listDeals = React.useMemo(() => dealsForList(deals, filters), [deals, filters]);
+  const listDeals = React.useMemo(
+    () => sortDealsByDistance(dealsForList(deals, filters), origin),
+    [deals, filters, origin],
+  );
   const visibleCount = view === "map" ? mapDeals.length : listDeals.length;
   const hasActiveFilters = Boolean(
     filters.type || filters.category || filters.placement || filters.includeStale,
   );
 
   const clearFilters = React.useCallback(() => setFilters(EMPTY_FILTERS), []);
+  const selectDeal = React.useCallback(
+    (dealId: string) => setSelectedDealId(dealId),
+    [],
+  );
+  const showDealOnMap = React.useCallback((dealId: string) => {
+    setSelectedDealId(dealId);
+    setView("map");
+  }, []);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -172,6 +192,7 @@ export default function Home() {
         {/* Main panel. The active view is a real tabpanel: id + aria-labelledby
             back to its tab + tabIndex so keyboard users can land on it. */}
         <main id="main" className="flex min-w-0 flex-1 flex-col">
+          <LocationSearch origin={origin} onOriginChange={setOrigin} />
           {state.kind === "error" ? (
             <ErrorPanel message={state.message} onRetry={() => setReloadKey((k) => k + 1)} />
           ) : state.kind === "loading" ? (
@@ -182,10 +203,13 @@ export default function Home() {
               role="tabpanel"
               aria-labelledby={TAB_IDS.map}
               tabIndex={0}
-              className="h-[calc(100dvh-9rem)] min-h-[420px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="h-[calc(100dvh-13rem)] min-h-[420px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <DealMap
                 deals={mapDeals}
+                origin={origin}
+                selectedDealId={selectedDealId}
+                onSelectDeal={selectDeal}
                 onClearFilters={hasActiveFilters ? clearFilters : undefined}
               />
             </section>
@@ -197,7 +221,14 @@ export default function Home() {
               tabIndex={0}
               className="focus-visible:outline-none"
             >
-              <DealList deals={listDeals} onClearFilters={clearFilters} />
+              <DealList
+                deals={listDeals}
+                origin={origin}
+                selectedDealId={selectedDealId}
+                onSelectDeal={selectDeal}
+                onShowOnMap={showDealOnMap}
+                onClearFilters={clearFilters}
+              />
             </section>
           )}
         </main>

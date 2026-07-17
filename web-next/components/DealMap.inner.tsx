@@ -12,6 +12,7 @@ import {
 import { TYPE_STYLE, STATUS_LABEL } from "@/components/deal-style";
 import { safeHttpUrl, SEATTLE, SEATTLE_ZOOM } from "@/components/deals";
 import type { Deal } from "@/components/deals";
+import type { SearchOrigin } from "@/lib/location";
 
 const DEAL_SOURCE_ID = "freemap-deals";
 const CLUSTER_LAYER_ID = "freemap-deal-clusters";
@@ -237,21 +238,43 @@ function pointCoordinates(
 
 interface DealMapInnerProps {
   deals: Deal[];
+  origin: SearchOrigin | null;
+  selectedDealId: string | null;
+  onSelectDeal: (dealId: string) => void;
   onInitializationError?: (message: string) => void;
 }
 
 export default function DealMapInner({
   deals,
+  origin,
+  selectedDealId,
+  onSelectDeal,
   onInitializationError,
 }: DealMapInnerProps) {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const mapRef = React.useRef<maplibregl.Map | null>(null);
   const popupRef = React.useRef<maplibregl.Popup | null>(null);
+  const originMarkerRef = React.useRef<maplibregl.Marker | null>(null);
   const dealsRef = React.useRef(deals);
+  const originRef = React.useRef(origin);
+  const selectedDealIdRef = React.useRef(selectedDealId);
+  const onSelectDealRef = React.useRef(onSelectDeal);
   const dealsByIdRef = React.useRef(
     new Map(deals.map((deal) => [String(deal.id), deal])),
   );
   const syncDealTargetsRef = React.useRef<() => void>(() => {});
+  const focusOriginRef = React.useRef<(origin: SearchOrigin | null) => void>(
+    () => {},
+  );
+  const openSelectedDealRef = React.useRef<(dealId: string | null) => void>(
+    () => {},
+  );
+
+  React.useEffect(() => {
+    originRef.current = origin;
+    selectedDealIdRef.current = selectedDealId;
+    onSelectDealRef.current = onSelectDeal;
+  }, [onSelectDeal, origin, selectedDealId]);
 
   React.useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -336,6 +359,7 @@ export default function DealMapInner({
     };
 
     const openDealAt = (deal: Deal, coordinates: [number, number]) => {
+      onSelectDealRef.current(String(deal.id));
       popupRef.current?.remove();
       popupRef.current = new maplibregl.Popup({
         closeButton: true,
@@ -348,6 +372,43 @@ export default function DealMapInner({
         .setDOMContent(popupFor(deal))
         .addTo(map);
     };
+
+    const focusOrigin = (nextOrigin: SearchOrigin | null) => {
+      originMarkerRef.current?.remove();
+      originMarkerRef.current = null;
+      if (!nextOrigin) return;
+
+      const markerElement = document.createElement("div");
+      markerElement.className = "fm-search-origin";
+      markerElement.setAttribute("aria-label", nextOrigin.label);
+      markerElement.title = nextOrigin.label;
+      originMarkerRef.current = new maplibregl.Marker({
+        element: markerElement,
+        anchor: "center",
+      })
+        .setLngLat([nextOrigin.lng, nextOrigin.lat])
+        .addTo(map);
+      map.easeTo({
+        center: [nextOrigin.lng, nextOrigin.lat],
+        zoom: Math.max(map.getZoom(), 13),
+        duration: reducedMotion ? 0 : 600,
+      });
+    };
+    focusOriginRef.current = focusOrigin;
+
+    const openSelectedDeal = (dealId: string | null) => {
+      if (!dealId) return;
+      const deal = dealsByIdRef.current.get(dealId);
+      if (deal?.lat == null || deal.lng == null) return;
+      const coordinates: [number, number] = [deal.lng, deal.lat];
+      map.easeTo({
+        center: coordinates,
+        zoom: Math.max(map.getZoom(), 15),
+        duration: reducedMotion ? 0 : 500,
+      });
+      openDealAt(deal, coordinates);
+    };
+    openSelectedDealRef.current = openSelectedDeal;
 
     const expandCluster = (event: MapLayerMouseEvent) => {
       const feature = event.features?.[0];
@@ -429,6 +490,8 @@ export default function DealMapInner({
         `Interactive map showing ${dealsRef.current.length} mapped deals`,
       );
       syncDealTargets();
+      focusOrigin(originRef.current);
+      openSelectedDeal(selectedDealIdRef.current);
     });
 
     const showPointer = () => {
@@ -458,12 +521,24 @@ export default function DealMapInner({
     return () => {
       popupRef.current?.remove();
       popupRef.current = null;
+      originMarkerRef.current?.remove();
+      originMarkerRef.current = null;
       syncDealTargetsRef.current = () => {};
+      focusOriginRef.current = () => {};
+      openSelectedDealRef.current = () => {};
       for (const target of dealTargets.values()) target.marker.remove();
       mapRef.current = null;
       map.remove();
     };
   }, [onInitializationError]);
+
+  React.useEffect(() => {
+    focusOriginRef.current(origin);
+  }, [origin]);
+
+  React.useEffect(() => {
+    openSelectedDealRef.current(selectedDealId);
+  }, [selectedDealId]);
 
   React.useEffect(() => {
     dealsRef.current = deals;

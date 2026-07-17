@@ -69,11 +69,14 @@ The read API is available under the Next.js app:
 
 - `GET /api/deals?type=&category=&placement=&bbox=&include_stale=`
 - `GET /api/deals/{id}`
+- `GET /api/geocode?q=` for Seattle neighborhood and address lookup
 - `GET /api/meta`
 
 `bbox` uses `minLng,minLat,maxLng,maxLat` and is pushed into SQL. The current UI
 loads the small map payload once and lets MapLibre cluster and cull offscreen
 markers, avoiding a request on every pan. Bounded API clients can use `bbox`.
+Users can search a Seattle neighborhood or address, or share browser location,
+to focus the map and sort the complete list by distance.
 
 Freshness is computed at read time:
 
