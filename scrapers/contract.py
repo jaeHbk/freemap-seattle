@@ -38,3 +38,9 @@ class Deal:
     eligibility: str | None = None
     redemption: str | None = None
     verified_at: datetime | None = None
+    candidate_id: int | None = None
+    source_tier: str | None = None
+    verification_status: str | None = None
+    evidence_count: int | None = None
+    quality_score: int | None = None
+    publication_reason: str | None = None

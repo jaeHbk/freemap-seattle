@@ -29,6 +29,12 @@ export interface Deal {
   first_seen: string | null;
   last_seen: string | null;
   status: DealStatus;
+  candidate_id?: number | null;
+  source_tier?: "official" | "community" | "editorial" | "aggregator" | null;
+  verification_status?: "official" | "corroborated" | null;
+  evidence_count?: number | null;
+  quality_score?: number | null;
+  publication_reason?: string | null;
   alt_urls?: string[];
 }
 

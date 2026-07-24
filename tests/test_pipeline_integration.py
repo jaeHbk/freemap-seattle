@@ -15,7 +15,7 @@ def _raw(source_id, title, raw_location=None):
     )
 
 
-def test_run_pipeline_end_to_end_inserts_rows(conn, now):
+def test_run_pipeline_stages_broad_rows_without_publishing_them(conn, now):
     geocoder = FakeGeocoder({"Capitol Hill": (47.6, -122.3)})
     raws = [
         _raw("1", "Free coffee", "Capitol Hill"),   # physical, geocodes ok
@@ -23,16 +23,19 @@ def test_run_pipeline_end_to_end_inserts_rows(conn, now):
         _raw("3", "Buy one get one free pizza", "Unknown Place"),  # geocode fails
     ]
     n = run_pipeline(raws, geocoder, conn, now)
-    assert n == 3
-    rows = {r["source_id"]: r for r in fetch_all_deals(conn)}
+    assert n == 0
+    assert fetch_all_deals(conn) == []
+    rows = {
+        r["source_id"]: r
+        for r in conn.execute("SELECT * FROM deal_candidates").fetchall()
+    }
     assert len(rows) == 3
     assert rows["1"]["geocode_status"] == "ok"
-    assert rows["1"]["placement"] == "physical"
+    assert rows["1"]["decision"] == "pending"
     assert rows["2"]["placement"] == "online"
     assert rows["2"]["geocode_status"] == "n/a"
     assert rows["3"]["deal_type"] == "bogo"
-    assert rows["3"]["geocode_status"] == "failed"
-    # every row got a dedup_key
+    assert rows["3"]["decision_reason"] == "location_unresolved"
     assert all(rows[k]["dedup_key"] for k in rows)
 
 
@@ -52,8 +55,12 @@ def test_run_pipeline_one_malformed_raw_does_not_abort_batch(conn, now):
     good = _raw("ok", "Free coffee")
     n = run_pipeline([bad, good], geocoder, conn, now)
     rows = [r["source_id"] for r in fetch_all_deals(conn)]
-    assert rows == ["ok"]   # bad row skipped, batch survived
-    assert n == 1
+    candidates = conn.execute(
+        "SELECT source_id FROM deal_candidates"
+    ).fetchall()
+    assert rows == []
+    assert [row["source_id"] for row in candidates] == ["ok"]
+    assert n == 0
 
 
 def test_run_pipeline_returns_zero_for_empty_input(conn, now):

@@ -81,11 +81,20 @@ export default async function globalSetup() {
     rows.map((args) => [INSERT_DEAL, args] as [string, typeof args]),
     "write",
   );
+  await client.execute({
+    sql:
+      "UPDATE deals SET source_tier = 'official', " +
+      "verification_status = 'official', evidence_count = 1, " +
+      "quality_score = 100, publication_reason = 'current_official_evidence' " +
+      "WHERE id = 2",
+    args: [],
+  });
   const insertRun = `
     INSERT INTO scrape_runs (
       source, started_at, finished_at, deals_found, deals_upserted,
-      map_pins, geocode_failures, duration_ms, errors
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      map_pins, geocode_failures, candidates_staged, candidates_pending,
+      candidates_rejected, duration_ms, errors
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   await client.batch(
     [
@@ -93,14 +102,14 @@ export default async function globalSetup() {
         insertRun,
         [
           "reddit", "2026-07-16T11:59:00", "2026-07-16T12:00:00",
-          4, 4, 3, 1, 1000, null,
+          4, 0, 0, 0, 4, 4, 0, 1000, null,
         ],
       ],
       [
         insertRun,
         [
           "places_brand", "2026-07-16T11:59:00",
-          "2026-07-16T12:00:00", 3, 3, 1, 0, 500, null,
+          "2026-07-16T12:00:00", 3, 3, 1, 0, 3, 0, 0, 500, null,
         ],
       ],
     ],

@@ -80,6 +80,25 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
+      - name: Information quality audit
+        env:
+          FREEMAP_REQUIRE_TURSO: "1"
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+        run: |
+          set +e
+          output=$(python -m scrapers.quality 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          {
+            echo "## Information quality"
+            echo '```text'
+            printf '%s\n' "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
       - name: Publish scrape alert
         if: ${{ always() }}
         continue-on-error: true
@@ -106,8 +125,8 @@ jobs:
                 "",
                 `Latest failed run: [GitHub Actions run ${context.runId}](${runUrl})`,
                 "",
-                "Check the run summary for per-source found, upserted, pin, " +
-                  "geocode-failure, and duration telemetry.",
+                "Check the run summary for discovery, publication, quality, " +
+                  "map-pin, geocode-failure, and duration telemetry.",
               ].join("\n");
               if (existing) {
                 await github.rest.issues.update({

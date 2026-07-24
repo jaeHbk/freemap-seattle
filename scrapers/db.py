@@ -12,11 +12,20 @@ _DEAL_COLUMN_MIGRATIONS = {
     "eligibility": "TEXT",
     "redemption": "TEXT",
     "verified_at": "TIMESTAMP",
+    "candidate_id": "INTEGER",
+    "source_tier": "TEXT",
+    "verification_status": "TEXT",
+    "evidence_count": "INTEGER",
+    "quality_score": "INTEGER",
+    "publication_reason": "TEXT",
 }
 _SCRAPE_RUN_COLUMN_MIGRATIONS = {
     "deals_upserted": "INTEGER",
     "map_pins": "INTEGER",
     "geocode_failures": "INTEGER",
+    "candidates_staged": "INTEGER",
+    "candidates_pending": "INTEGER",
+    "candidates_rejected": "INTEGER",
     "duration_ms": "INTEGER",
 }
 
@@ -209,12 +218,16 @@ def upsert_deals(conn, deals: list[Deal], now: datetime) -> int:
             source, source_id, dedup_key, title, url, description,
             eligibility, redemption, verified_at,
             deal_type, category, placement, lat, lng, raw_location,
-            geocode_status, posted_at, expires_at, first_seen, last_seen, status
+            geocode_status, posted_at, expires_at, first_seen, last_seen, status,
+            candidate_id, source_tier, verification_status, evidence_count,
+            quality_score, publication_reason
         ) VALUES (
             :source, :source_id, :dedup_key, :title, :url, :description,
             :eligibility, :redemption, :verified_at,
             :deal_type, :category, :placement, :lat, :lng, :raw_location,
-            :geocode_status, :posted_at, :expires_at, :now, :now, 'active'
+            :geocode_status, :posted_at, :expires_at, :now, :now, 'active',
+            :candidate_id, :source_tier, :verification_status, :evidence_count,
+            :quality_score, :publication_reason
         )
         ON CONFLICT(source, source_id) DO UPDATE SET
             dedup_key=excluded.dedup_key,
@@ -233,6 +246,12 @@ def upsert_deals(conn, deals: list[Deal], now: datetime) -> int:
             geocode_status=excluded.geocode_status,
             posted_at=excluded.posted_at,
             expires_at=excluded.expires_at,
+            candidate_id=excluded.candidate_id,
+            source_tier=excluded.source_tier,
+            verification_status=excluded.verification_status,
+            evidence_count=excluded.evidence_count,
+            quality_score=excluded.quality_score,
+            publication_reason=excluded.publication_reason,
             last_seen=:now
     """
     now_iso = now.isoformat()
@@ -262,6 +281,12 @@ def upsert_deals(conn, deals: list[Deal], now: datetime) -> int:
                 "geocode_status": d.geocode_status,
                 "posted_at": _to_db(d.posted_at),
                 "expires_at": _to_db(d.expires_at),
+                "candidate_id": d.candidate_id,
+                "source_tier": d.source_tier,
+                "verification_status": d.verification_status,
+                "evidence_count": d.evidence_count,
+                "quality_score": d.quality_score,
+                "publication_reason": d.publication_reason,
                 "now": now_iso,
             }
             conn.execute(sql, params)
@@ -283,6 +308,9 @@ def record_run(
     deals_upserted: int = 0,
     map_pins: int = 0,
     geocode_failures: int = 0,
+    candidates_staged: int = 0,
+    candidates_pending: int = 0,
+    candidates_rejected: int = 0,
     duration_ms: int | None = None,
 ) -> None:
     """Write one row to scrape_runs for a single source's run."""
@@ -290,9 +318,10 @@ def record_run(
         """
         INSERT INTO scrape_runs (
             source, started_at, finished_at, deals_found, deals_upserted,
-            map_pins, geocode_failures, duration_ms, errors
+            map_pins, geocode_failures, candidates_staged,
+            candidates_pending, candidates_rejected, duration_ms, errors
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             source,
@@ -302,11 +331,202 @@ def record_run(
             deals_upserted,
             map_pins,
             geocode_failures,
+            candidates_staged,
+            candidates_pending,
+            candidates_rejected,
             duration_ms,
             errors,
         ),
     )
     conn.commit()
+
+
+def upsert_candidate(
+    conn,
+    deal: Deal,
+    now: datetime,
+    *,
+    source_tier: str,
+) -> int:
+    """Persist a normalized claim before deciding whether it can be published."""
+    sql = """
+        INSERT INTO deal_candidates (
+            source, source_id, dedup_key, title, url, description,
+            eligibility, redemption, verified_at, deal_type, category,
+            placement, lat, lng, raw_location, geocode_status, posted_at,
+            expires_at, source_tier, decision, decision_reason, quality_score,
+            first_seen, last_seen
+        ) VALUES (
+            :source, :source_id, :dedup_key, :title, :url, :description,
+            :eligibility, :redemption, :verified_at, :deal_type, :category,
+            :placement, :lat, :lng, :raw_location, :geocode_status, :posted_at,
+            :expires_at, :source_tier, 'pending', 'evaluation_pending', 0,
+            :now, :now
+        )
+        ON CONFLICT(source, source_id) DO UPDATE SET
+            dedup_key=excluded.dedup_key,
+            title=excluded.title,
+            url=excluded.url,
+            description=excluded.description,
+            eligibility=excluded.eligibility,
+            redemption=excluded.redemption,
+            verified_at=excluded.verified_at,
+            deal_type=excluded.deal_type,
+            category=excluded.category,
+            placement=excluded.placement,
+            lat=excluded.lat,
+            lng=excluded.lng,
+            raw_location=excluded.raw_location,
+            geocode_status=excluded.geocode_status,
+            posted_at=excluded.posted_at,
+            expires_at=excluded.expires_at,
+            source_tier=excluded.source_tier,
+            decision='pending',
+            decision_reason='evaluation_pending',
+            quality_score=0,
+            last_seen=excluded.last_seen
+    """
+    conn.execute(
+        sql,
+        {
+            "source": deal.source,
+            "source_id": deal.source_id,
+            "dedup_key": deal.dedup_key,
+            "title": deal.title,
+            "url": deal.url,
+            "description": deal.description,
+            "eligibility": deal.eligibility,
+            "redemption": deal.redemption,
+            "verified_at": _to_db(deal.verified_at),
+            "deal_type": deal.deal_type,
+            "category": deal.category,
+            "placement": deal.placement,
+            "lat": deal.lat,
+            "lng": deal.lng,
+            "raw_location": deal.raw_location,
+            "geocode_status": deal.geocode_status,
+            "posted_at": _to_db(deal.posted_at),
+            "expires_at": _to_db(deal.expires_at),
+            "source_tier": source_tier,
+            "now": _to_db(now),
+        },
+    )
+    row = conn.execute(
+        "SELECT id FROM deal_candidates WHERE source = ? AND source_id = ?",
+        (deal.source, deal.source_id),
+    ).fetchone()
+    if row is None:
+        raise sqlite3.DatabaseError("candidate upsert did not return a row")
+    return int(row["id"])
+
+
+def upsert_evidence(
+    conn,
+    *,
+    candidate_id: int,
+    source: str,
+    source_id: str,
+    evidence_type: str,
+    url: str,
+    excerpt: str | None,
+    content_hash: str,
+    observed_at: datetime,
+) -> None:
+    """Persist one source observation without duplicating unchanged evidence."""
+    conn.execute(
+        """
+        INSERT INTO deal_evidence (
+            candidate_id, source, source_id, evidence_type, url, excerpt,
+            content_hash, observed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(candidate_id, content_hash) DO UPDATE SET
+            observed_at=excluded.observed_at,
+            url=excluded.url,
+            excerpt=excluded.excerpt
+        """,
+        (
+            candidate_id,
+            source,
+            source_id,
+            evidence_type,
+            url,
+            excerpt,
+            content_hash,
+            _to_db(observed_at),
+        ),
+    )
+
+
+def candidate_evidence_stats(conn, dedup_key: str | None) -> dict[str, int]:
+    """Return evidence and independent-source counts for a candidate claim."""
+    if not dedup_key:
+        return {"evidence_count": 0, "source_count": 0}
+    row = conn.execute(
+        """
+        SELECT COUNT(e.id) AS evidence_count,
+               COUNT(DISTINCT e.source) AS source_count
+        FROM deal_evidence e
+        JOIN deal_candidates c ON c.id = e.candidate_id
+        WHERE c.dedup_key = ?
+        """,
+        (dedup_key,),
+    ).fetchone()
+    return {
+        "evidence_count": int(row["evidence_count"] or 0),
+        "source_count": int(row["source_count"] or 0),
+    }
+
+
+def update_candidate_decision(
+    conn,
+    candidate_id: int,
+    *,
+    decision: str,
+    reason: str,
+    quality_score: int,
+) -> None:
+    conn.execute(
+        """
+        UPDATE deal_candidates
+        SET decision = ?, decision_reason = ?, quality_score = ?
+        WHERE id = ?
+        """,
+        (decision, reason, quality_score, candidate_id),
+    )
+
+
+def unpublish_deal(conn, source: str, source_id: str) -> None:
+    """Remove a formerly published row when its current claim no longer passes."""
+    conn.execute(
+        "DELETE FROM deals WHERE source = ? AND source_id = ?",
+        (source, source_id),
+    )
+
+
+def unpublish_unstaged_deals(conn) -> int:
+    """Remove pre-staging public rows after a successful authoritative refresh."""
+    cursor = conn.execute("DELETE FROM deals WHERE candidate_id IS NULL")
+    conn.commit()
+    return max(0, int(cursor.rowcount or 0))
+
+
+def collect_staging_metrics(conn, source: str, observed_at) -> dict[str, int]:
+    """Count this source run's staged outcomes."""
+    row = conn.execute(
+        """
+        SELECT COUNT(*) AS staged,
+               SUM(CASE WHEN decision = 'pending' THEN 1 ELSE 0 END) AS pending,
+               SUM(CASE WHEN decision = 'rejected' THEN 1 ELSE 0 END) AS rejected
+        FROM deal_candidates
+        WHERE source = ? AND last_seen = ?
+        """,
+        (source, _to_db(observed_at)),
+    ).fetchone()
+    return {
+        "candidates_staged": int(row["staged"] or 0),
+        "candidates_pending": int(row["pending"] or 0),
+        "candidates_rejected": int(row["rejected"] or 0),
+    }
 
 
 def collect_source_run_metrics(conn, source: str, observed_at) -> dict[str, int]:

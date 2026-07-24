@@ -156,7 +156,7 @@ def test_health_report_includes_operational_telemetry():
         minimum_pins={"places_brand": 39},
     )
 
-    assert "found=43 upserted=43 pins=39" in report
+    assert "found=43 published=43 pins=39" in report
     assert "geocode_failed=4 duration_ms=1250" in report
     assert report.endswith("HEALTHY")
 

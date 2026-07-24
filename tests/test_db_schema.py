@@ -31,7 +31,7 @@ def test_connect_uses_row_factory(tmp_path):
     conn.close()
 
 
-def test_init_db_creates_all_three_tables(conn):
+def test_init_db_creates_domain_tables(conn):
     # conn fixture already ran the schema, but init_db must be idempotent and
     # also create the tables on a fresh connection.
     fresh = sqlite3.connect(":memory:")
@@ -41,7 +41,13 @@ def test_init_db_creates_all_three_tables(conn):
         "SELECT name FROM sqlite_master WHERE type='table' "
         "AND name NOT LIKE 'sqlite_%'"
     ))
-    assert names == ["deals", "geocode_cache", "scrape_runs"]
+    assert names == [
+        "deal_candidates",
+        "deal_evidence",
+        "deals",
+        "geocode_cache",
+        "scrape_runs",
+    ]
     fresh.close()
 
 
@@ -74,11 +80,24 @@ def test_init_db_migrates_existing_deals_table():
         row[1]
         for row in legacy.execute("PRAGMA table_info(scrape_runs)").fetchall()
     }
-    assert {"eligibility", "redemption", "verified_at"} <= deal_columns
+    assert {
+        "eligibility",
+        "redemption",
+        "verified_at",
+        "candidate_id",
+        "source_tier",
+        "verification_status",
+        "evidence_count",
+        "quality_score",
+        "publication_reason",
+    } <= deal_columns
     assert {
         "deals_upserted",
         "map_pins",
         "geocode_failures",
+        "candidates_staged",
+        "candidates_pending",
+        "candidates_rejected",
         "duration_ms",
     } <= run_columns
     legacy.close()

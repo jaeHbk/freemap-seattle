@@ -26,9 +26,9 @@ export FREEMAP_REQUIRE_TURSO=1
 ./.venv/bin/python -m scripts.migrate_turso
 ```
 
-The migration is idempotent, adds nullable deal-detail and scrape-telemetry
-columns introduced after the initial schema, and verifies the remote schema
-with a read-back query.
+The migration is idempotent, creates candidate/evidence staging tables, adds
+nullable publication-provenance and scrape-telemetry columns, and verifies the
+remote schema with a read-back query.
 A successful run prints:
 
 ```text
@@ -42,10 +42,12 @@ With the same environment:
 ```bash
 ./.venv/bin/python -m scrapers.run
 ./.venv/bin/python -m scrapers.health
+./.venv/bin/python -m scrapers.quality
 ```
 
-`places_brand` is required and should produce the configured geocoded Seattle
-pins. `reddit` is optional and may return zero or encounter rate limiting.
+`places_brand` is required and should publish the configured geocoded Seattle
+pins. All other adapters are optional discovery inputs; pending or rejected
+candidates do not make the health check fail.
 
 Verify scoped rows and coordinates:
 
@@ -54,7 +56,8 @@ turso db shell freemap \
   "SELECT source, deal_type, COUNT(*) AS deals, \
    SUM(CASE WHEN lat IS NOT NULL AND lng IS NOT NULL THEN 1 ELSE 0 END) AS pins \
    FROM deals GROUP BY source, deal_type; \
-   SELECT source, deals_found, deals_upserted, map_pins, geocode_failures, \
+   SELECT source, deals_found, candidates_staged, deals_upserted, \
+   candidates_pending, candidates_rejected, map_pins, geocode_failures, \
    duration_ms, errors, finished_at \
    FROM scrape_runs ORDER BY id DESC LIMIT 4;"
 ```
@@ -70,26 +73,27 @@ Add these repository Actions secrets:
 The workflow sets `FREEMAP_REQUIRE_TURSO=1`, so missing or incomplete Turso
 secrets fail before any SQLite fallback can occur.
 
-Dispatch `.github/workflows/scrape.yml` once and wait for both steps:
+Dispatch `.github/workflows/scrape.yml` once and wait for all three steps:
 
 1. `Scrape into Turso`
 2. `Source health check`
+3. `Information quality audit`
 
 The health baseline is:
 
 - `expected = ["places_brand"]`
-- `optional = ["reddit"]`
-- `minimum_deals = { places_brand = 43 }`
-- `minimum_pins = { places_brand = 39 }`
+- `optional = ["reddit", "chains", "slickdeals", "local"]`
+- `minimum_deals = { places_brand = 44 }`
+- `minimum_pins = { places_brand = 40 }`
 
 Health fails when the latest required run is missing, stale, errored, fetches or
-stores fewer than all 43 configured deals, or produces fewer than 39 current
+stores fewer than all 44 configured deals, or produces fewer than 40 current
 map pins.
 The `places_brand` source also fails closed when official terms have not been
 reverified within 30 days or an explicit `expires_at` has passed. Follow
 `TASK.md` to recheck terms and storefronts before the deadline.
-Every workflow run writes found/upserted/pin/geocode-failure/duration telemetry
-to its GitHub Actions summary.
+Every workflow run writes discovery/publication/pin/geocode-failure/duration
+telemetry and the database quality audit to its GitHub Actions summary.
 
 On failure, the workflow opens or updates the single issue
 `[FreeMap] Scheduled scrape unhealthy` with the latest run link. Repeated
@@ -148,7 +152,8 @@ Inspect recent source health:
 
 ```bash
 turso db shell freemap \
-  "SELECT source, finished_at, deals_found, deals_upserted, map_pins, \
+  "SELECT source, finished_at, deals_found, candidates_staged, \
+   deals_upserted, candidates_pending, candidates_rejected, map_pins, \
    geocode_failures, duration_ms, errors \
    FROM scrape_runs ORDER BY id DESC LIMIT 10;"
 ```
@@ -159,5 +164,6 @@ Inspect the app's serving metadata:
 curl --fail --silent --show-error https://YOUR_DOMAIN/api/meta
 ```
 
-Keep `chains`, `slickdeals`, and `local` disabled unless their output is proven
-to be consistently in FreeMap's Free/BOGO scope.
+Keep broad discovery enabled, but do not bypass candidate publication policy for
+`reddit`, `chains`, `slickdeals`, or `local`. Review pending/rejected counts and
+source markup changes when their candidate volume shifts unexpectedly.

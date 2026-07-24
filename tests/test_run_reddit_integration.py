@@ -65,15 +65,17 @@ def test_run_all_single_source_writes_rows(tmp_path, monkeypatch):
     # Canonical return shape.
     assert set(summary.keys()) == {"reddit"}
     assert summary["reddit"]["deals_found"] == 3
-    assert summary["reddit"]["upserted"] == 3
-    assert summary["reddit"]["map_pins"] == 1
+    assert summary["reddit"]["upserted"] == 0
+    assert summary["reddit"]["candidates_staged"] == 3
+    assert summary["reddit"]["candidates_pending"] == 3
+    assert summary["reddit"]["map_pins"] == 0
     assert summary["reddit"]["geocode_failures"] == 0
     assert summary["reddit"]["duration_ms"] >= 0
     assert summary["reddit"]["errors"] is None
 
     rows = conn.execute(
         "SELECT source_id, deal_type, placement, geocode_status, lat, lng "
-        "FROM deals ORDER BY source_id"
+        "FROM deal_candidates ORDER BY source_id"
     ).fetchall()
     by_id = {r["source_id"]: r for r in rows}
     assert len(by_id) == 3
@@ -98,8 +100,10 @@ def test_run_all_single_source_writes_rows(tmp_path, monkeypatch):
     assert len(run_rows) == 1
     assert run_rows[0]["source"] == "reddit"
     assert run_rows[0]["deals_found"] == 3
-    assert run_rows[0]["deals_upserted"] == 3
-    assert run_rows[0]["map_pins"] == 1
+    assert run_rows[0]["deals_upserted"] == 0
+    assert run_rows[0]["candidates_staged"] == 3
+    assert run_rows[0]["candidates_pending"] == 3
+    assert run_rows[0]["map_pins"] == 0
     assert run_rows[0]["geocode_failures"] == 0
     assert run_rows[0]["duration_ms"] >= 0
     assert run_rows[0]["errors"] is None
@@ -130,8 +134,9 @@ def test_run_all_isolates_failing_source(tmp_path, monkeypatch):
         sources={"reddit": reddit.fetch, "boom": boom},
     )
 
-    # reddit still succeeded and upserted its rows.
-    assert summary["reddit"]["upserted"] == 3
+    # reddit still succeeded and staged its rows.
+    assert summary["reddit"]["upserted"] == 0
+    assert summary["reddit"]["candidates_staged"] == 3
     assert summary["reddit"]["errors"] is None
 
     # boom recorded an error and upserted nothing.
@@ -139,9 +144,13 @@ def test_run_all_isolates_failing_source(tmp_path, monkeypatch):
     assert summary["boom"]["errors"] is not None
     assert "source exploded" in summary["boom"]["errors"]
 
-    # reddit's rows actually landed in the DB despite boom failing.
+    # reddit's candidates actually landed in the DB despite boom failing.
     deal_count = conn.execute("SELECT COUNT(*) AS n FROM deals").fetchone()["n"]
-    assert deal_count == 3
+    candidate_count = conn.execute(
+        "SELECT COUNT(*) AS n FROM deal_candidates"
+    ).fetchone()["n"]
+    assert deal_count == 0
+    assert candidate_count == 3
 
     # scrape_runs has one row per source; boom's carries the error string.
     run_rows = {
