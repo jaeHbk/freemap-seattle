@@ -3,7 +3,21 @@ from datetime import datetime, timedelta, timezone
 
 from scrapers.contract import RawDeal, Deal
 from scrapers.deal_scope import classify_deal_type
-from scrapers.db import upsert_deals
+from scrapers.db import (
+    candidate_evidence_stats,
+    unpublish_deal,
+    update_candidate_decision,
+    upsert_candidate,
+    upsert_deals,
+    upsert_evidence,
+)
+from scrapers.publication import (
+    evaluate_candidate,
+    evidence_excerpt,
+    evidence_hash,
+    evidence_type,
+    source_tier,
+)
 
 
 def normalize(raw: RawDeal) -> RawDeal:
@@ -44,7 +58,18 @@ def classify(raw: RawDeal) -> Deal:
 
     if any(k in text for k in ("food", "coffee", "burrito", "pizza", "drink", "meal")):
         category = "food"
-    elif any(k in text for k in ("event", "show", "concert", "festival")):
+    elif any(
+        k in text
+        for k in (
+            "event",
+            "show",
+            "concert",
+            "festival",
+            "museum",
+            "gallery",
+            "admission",
+        )
+    ):
         category = "event"
     elif any(
         k in text
@@ -152,19 +177,103 @@ def compute_status(expires_at, last_seen, now, stale_after_hours: int) -> str:
 
 
 def run_pipeline(raws: list[RawDeal], geocoder, conn, now) -> int:
-    """Chain every raw through normalize -> classify -> geocode_deal with per-row
-    try/except (one bad row never aborts the batch), then dedup the survivors and
-    upsert them. Returns the number of rows upserted. FULLY IMPLEMENTED (not a stub).
+    """Stage every valid raw observation, then publish only accepted candidates.
+
+    One malformed row never aborts the batch. Out-of-scope rows are retained as
+    rejected candidates but skip geocoding. Returns the number of published rows
+    upserted, preserving the function's existing caller contract.
     """
-    deals: list[Deal] = []
+    normalized_pairs: list[tuple[RawDeal, Deal]] = []
     for raw in raws:
         try:
             normalized = normalize(raw)
             deal = classify(normalized)
-            deal = geocode_deal(deal, geocoder)
-            deals.append(deal)
+            if deal.deal_type in {"free", "bogo"}:
+                deal = geocode_deal(deal, geocoder)
+            normalized_pairs.append((normalized, deal))
         except Exception:
             # One malformed raw must not abort the batch.
             continue
-    deals = dedup(deals)
-    return upsert_deals(conn, deals, now)
+
+    dedup([deal for _, deal in normalized_pairs])
+    staged: list[tuple[RawDeal, Deal, int, str]] = []
+    for raw, deal in normalized_pairs:
+        candidate_id: int | None = None
+        try:
+            tier = source_tier(deal.source)
+            candidate_id = upsert_candidate(
+                conn,
+                deal,
+                now,
+                source_tier=tier,
+            )
+            upsert_evidence(
+                conn,
+                candidate_id=candidate_id,
+                source=raw.source,
+                source_id=raw.source_id,
+                evidence_type=evidence_type(tier),
+                url=raw.url,
+                excerpt=evidence_excerpt(raw),
+                content_hash=evidence_hash(raw),
+                observed_at=now,
+            )
+            staged.append((raw, deal, candidate_id, tier))
+        except Exception:
+            try:
+                if candidate_id is not None:
+                    update_candidate_decision(
+                        conn,
+                        candidate_id,
+                        decision="pending",
+                        reason="evidence_processing_failed",
+                        quality_score=0,
+                    )
+                unpublish_deal(conn, deal.source, deal.source_id)
+            except Exception:
+                pass
+            continue
+
+    published: list[Deal] = []
+    for _, deal, candidate_id, tier in staged:
+        try:
+            stats = candidate_evidence_stats(conn, deal.dedup_key)
+            decision = evaluate_candidate(
+                deal,
+                tier=tier,
+                now=now,
+                independent_source_count=stats["source_count"],
+            )
+            update_candidate_decision(
+                conn,
+                candidate_id,
+                decision=decision.decision,
+                reason=decision.reason,
+                quality_score=decision.quality_score,
+            )
+            if decision.decision == "accepted":
+                deal.candidate_id = candidate_id
+                deal.source_tier = tier
+                deal.verification_status = decision.verification_status
+                deal.evidence_count = stats["evidence_count"]
+                deal.quality_score = decision.quality_score
+                deal.publication_reason = decision.reason
+                published.append(deal)
+            else:
+                unpublish_deal(conn, deal.source, deal.source_id)
+        except Exception:
+            try:
+                update_candidate_decision(
+                    conn,
+                    candidate_id,
+                    decision="pending",
+                    reason="publication_evaluation_failed",
+                    quality_score=0,
+                )
+                unpublish_deal(conn, deal.source, deal.source_id)
+            except Exception:
+                pass
+            continue
+
+    conn.commit()
+    return upsert_deals(conn, published, now)

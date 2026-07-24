@@ -65,6 +65,12 @@ export type Deal = {
   first_seen: string | null;
   last_seen: string | null;
   status?: "active" | "stale" | "expired";
+  candidate_id?: number | null;
+  source_tier?: "official" | "community" | "editorial" | "aggregator" | null;
+  verification_status?: "official" | "corroborated" | null;
+  evidence_count?: number | null;
+  quality_score?: number | null;
+  publication_reason?: string | null;
   alt_urls: string[];
 };
 
@@ -92,6 +98,16 @@ export function rowToDeal(row: Row): Deal {
     expires_at: row.expires_at as string | null,
     first_seen: row.first_seen as string | null,
     last_seen: row.last_seen as string | null,
+    candidate_id: row.candidate_id == null ? null : Number(row.candidate_id),
+    source_tier: (row.source_tier as Deal["source_tier"]) ?? null,
+    verification_status:
+      (row.verification_status as Deal["verification_status"]) ?? null,
+    evidence_count:
+      row.evidence_count == null ? null : Number(row.evidence_count),
+    quality_score:
+      row.quality_score == null ? null : Number(row.quality_score),
+    publication_reason:
+      row.publication_reason == null ? null : String(row.publication_reason),
     alt_urls: [],
   };
 }

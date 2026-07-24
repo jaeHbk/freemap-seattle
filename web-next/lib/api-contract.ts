@@ -74,6 +74,9 @@ export function buildSourceMetadata(
       deals_upserted: number | null;
       map_pins: number | null;
       geocode_failures: number | null;
+      candidates_staged: number | null;
+      candidates_pending: number | null;
+      candidates_rejected: number | null;
       duration_ms: number | null;
     }
   >();
@@ -86,6 +89,9 @@ export function buildSourceMetadata(
       deals_upserted: numberOrNull(row.deals_upserted),
       map_pins: numberOrNull(row.map_pins),
       geocode_failures: numberOrNull(row.geocode_failures),
+      candidates_staged: numberOrNull(row.candidates_staged),
+      candidates_pending: numberOrNull(row.candidates_pending),
+      candidates_rejected: numberOrNull(row.candidates_rejected),
       duration_ms: numberOrNull(row.duration_ms),
     });
   }

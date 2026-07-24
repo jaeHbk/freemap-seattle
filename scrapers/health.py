@@ -27,7 +27,7 @@ from scrapers.pipeline import _as_naive_utc
 # Production baseline (config.toml [health]). Used only if the [health] table is
 # absent, so automation still checks the verified map-filling source.
 _DEFAULT_EXPECTED = ["places_brand"]
-_DEFAULT_OPTIONAL = ["reddit"]
+_DEFAULT_OPTIONAL = ["reddit", "chains", "slickdeals", "local"]
 _DEFAULT_MINIMUM_PINS = {"places_brand": 1}
 _DEFAULT_MINIMUM_DEALS = {"places_brand": 1}
 
@@ -195,6 +195,9 @@ def read_latest_runs(conn) -> dict[str, dict]:
                s.deals_upserted AS deals_upserted,
                s.map_pins AS map_pins,
                s.geocode_failures AS geocode_failures,
+               s.candidates_staged AS candidates_staged,
+               s.candidates_pending AS candidates_pending,
+               s.candidates_rejected AS candidates_rejected,
                s.duration_ms AS duration_ms
         FROM scrape_runs s
         JOIN (SELECT source, MAX(id) AS mid FROM scrape_runs GROUP BY source) m
@@ -209,6 +212,9 @@ def read_latest_runs(conn) -> dict[str, dict]:
             "deals_upserted": r["deals_upserted"],
             "map_pins": r["map_pins"],
             "geocode_failures": r["geocode_failures"],
+            "candidates_staged": r["candidates_staged"],
+            "candidates_pending": r["candidates_pending"],
+            "candidates_rejected": r["candidates_rejected"],
             "duration_ms": r["duration_ms"],
         }
         for r in rows
@@ -260,7 +266,13 @@ def format_report(
         else:
             metrics = [f"found={run['deals_found']}"]
             if run.get("deals_upserted") is not None:
-                metrics.append(f"upserted={run['deals_upserted']}")
+                metrics.append(f"published={run['deals_upserted']}")
+            if run.get("candidates_staged") is not None:
+                metrics.append(f"staged={run['candidates_staged']}")
+            if run.get("candidates_pending") is not None:
+                metrics.append(f"pending={run['candidates_pending']}")
+            if run.get("candidates_rejected") is not None:
+                metrics.append(f"rejected={run['candidates_rejected']}")
             pins = pin_counts.get(source, run.get("map_pins"))
             if pins is not None:
                 metrics.append(f"pins={pins}")
@@ -281,7 +293,10 @@ def format_report(
             status = "error" if run.get("errors") is not None else "ok"
             detail = (
                 f"found={run.get('deals_found')} "
-                f"upserted={run.get('deals_upserted')} "
+                f"published={run.get('deals_upserted')} "
+                f"staged={run.get('candidates_staged')} "
+                f"pending={run.get('candidates_pending')} "
+                f"rejected={run.get('candidates_rejected')} "
                 f"pins={run.get('map_pins')} status={status}"
             )
         lines.append(f"  [opt]  {source}: {detail} (optional, not alerting)")

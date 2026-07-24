@@ -112,6 +112,9 @@ def test_run_all_one_source_throws_others_still_upsert(monkeypatch):
             "upserted",
             "map_pins",
             "geocode_failures",
+            "candidates_staged",
+            "candidates_pending",
+            "candidates_rejected",
             "duration_ms",
             "errors",
         }
@@ -121,25 +124,40 @@ def test_run_all_one_source_throws_others_still_upsert(monkeypatch):
     assert "exploded" in summary["reddit"]["errors"]
     assert summary["reddit"]["upserted"] == 0
 
-    # The three healthy sources upserted their rows (chains = 5 venue happy hours).
+    # Healthy broad sources stage their rows without lowering public precision.
     assert summary["chains"]["errors"] is None
-    assert summary["chains"]["upserted"] == 5
+    assert summary["chains"]["upserted"] == 0
+    assert summary["chains"]["candidates_rejected"] == 5
     assert summary["slickdeals"]["errors"] is None
     # DealNews fixture has 2 valid OFFER cards (an ARTICLE card and an id-less
     # OFFER are correctly skipped).
-    assert summary["slickdeals"]["upserted"] == 2
+    assert summary["slickdeals"]["upserted"] == 0
+    assert summary["slickdeals"]["candidates_staged"] == 2
     assert summary["local"]["errors"] is None
-    assert summary["local"]["upserted"] == 2
+    assert summary["local"]["upserted"] == 0
+    assert summary["local"]["candidates_staged"] == 2
 
-    # DB holds exactly the survivors' rows: 5 + 2 + 2 = 9, none from reddit.
-    rows = fetch_all_deals(conn)
-    assert len(rows) == 9
-    assert all(r["source"] != "reddit" for r in rows)
+    assert fetch_all_deals(conn) == []
+    candidates = conn.execute("SELECT * FROM deal_candidates").fetchall()
+    assert len(candidates) == 9
+    assert all(r["source"] != "reddit" for r in candidates)
 
 
 def test_verification_failure_records_error_without_refreshing_existing_rows():
     conn = connect(":memory:")
     init_db(conn)
+    conn.execute(
+        """
+        INSERT INTO deals (
+            source, source_id, title, url, deal_type, category, placement,
+            geocode_status, status
+        ) VALUES (
+            'legacy', 'unstaged', 'Old broad result', 'https://example.com/old',
+            'other', 'other', 'online', 'n/a', 'active'
+        )
+        """
+    )
+    conn.commit()
     config = _config()
     geocoder = FakeGeocoder({})
 
@@ -162,7 +180,9 @@ def test_verification_failure_records_error_without_refreshing_existing_rows():
         sources={"places_brand": current_terms},
     )
     assert first["places_brand"]["upserted"] == 1
-    assert fetch_all_deals(conn)[0]["last_seen"] == NOW.isoformat()
+    rows = fetch_all_deals(conn)
+    assert [row["source_id"] for row in rows] == ["verified::store"]
+    assert rows[0]["last_seen"] == NOW.isoformat()
 
     def overdue_terms(config):
         raise VerificationError(

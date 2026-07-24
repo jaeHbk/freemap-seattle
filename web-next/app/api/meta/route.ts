@@ -15,7 +15,8 @@ export async function GET() {
   try {
     latestRows = await query(
       "SELECT s.source, s.finished_at, s.deals_found, s.deals_upserted, " +
-        "s.map_pins, s.geocode_failures, s.duration_ms, s.errors " +
+        "s.map_pins, s.geocode_failures, s.candidates_staged, " +
+        "s.candidates_pending, s.candidates_rejected, s.duration_ms, s.errors " +
         "FROM scrape_runs s JOIN (" +
         "SELECT source, MAX(id) AS latest_id FROM scrape_runs GROUP BY source" +
         ") latest ON s.source = latest.source AND s.id = latest.latest_id",

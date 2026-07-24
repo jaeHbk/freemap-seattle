@@ -37,6 +37,16 @@ function sourceLabel(source: string): string {
     .join(" ");
 }
 
+function verificationLabel(deal: Deal): string {
+  if (deal.verification_status === "official") {
+    return "Verified from an official source";
+  }
+  if (deal.verification_status === "corroborated") {
+    return "Corroborated by independent sources";
+  }
+  return sourceLabel(deal.source);
+}
+
 function DetailSection({
   icon,
   title,
@@ -212,8 +222,14 @@ export function DealDetails({
             >
               <div className="flex items-center gap-2">
                 <ShieldCheck className="size-4 text-primary" />
-                <span>{sourceLabel(deal.source)}</span>
+                <span>{verificationLabel(deal)}</span>
               </div>
+              {deal.evidence_count != null && deal.evidence_count > 0 && (
+                <p className="mt-2">
+                  {deal.evidence_count} evidence{" "}
+                  {deal.evidence_count === 1 ? "observation" : "observations"}
+                </p>
+              )}
             </DetailSection>
 
             <DetailSection

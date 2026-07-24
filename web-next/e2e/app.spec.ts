@@ -26,6 +26,11 @@ const ACTIVE_DEALS: Deal[] = [
     first_seen: "2026-07-16T00:00:00",
     last_seen: "2026-07-16T00:00:00",
     status: "active",
+    source_tier: "official",
+    verification_status: "official",
+    evidence_count: 1,
+    quality_score: 100,
+    publication_reason: "current_official_evidence",
     alt_urls: ["https://example.com/coffee-terms"],
   },
   {
@@ -235,6 +240,10 @@ test("list filters and structured deal details survive reload", async ({
   await expect(page.getByText("Deal details", { exact: true })).toBeVisible();
   await expect(page.getByText("Rewards members with one prior purchase.")).toBeVisible();
   await expect(page.getByText("Scan the member barcode at checkout.")).toBeVisible();
+  await expect(
+    page.getByText("Verified from an official source"),
+  ).toBeVisible();
+  await expect(page.getByText("1 evidence observation")).toBeVisible();
   await expect.poll(() => new URL(page.url()).searchParams.get("deal")).toBe(
     "101",
   );

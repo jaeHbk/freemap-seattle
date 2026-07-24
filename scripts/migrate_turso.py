@@ -9,8 +9,9 @@ env — it never reads or embeds a token from anywhere else.
     ./.venv/bin/python -m scripts.migrate_turso
 
 Local dev does NOT need this: scrapers/db.py creates and upgrades the schema in
-db/deals.db on its own. This script also applies additive deal-detail and
-scrape-telemetry columns to an existing remote Turso database.
+db/deals.db on its own. This script also creates candidate/evidence tables and
+applies additive provenance and scrape-telemetry columns to an existing Turso
+database.
 """
 import os
 import sys

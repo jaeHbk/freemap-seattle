@@ -2,11 +2,10 @@
 metro = "seattle"
 db_path = "db/deals.db"
 user_agent = "FreeMapSeattle/1.0 (contact: freemap@example.com)"
-# places_brand supplies verified physical Free/BOGO pins from current official
-# offer terms and Seattle store directories. Reddit is scoped to Free/BOGO
-# posts but may be rate-limited by source IP. The broader
-# chains/slickdeals/local parsers remain available but are disabled in production.
-sources_enabled = ["places_brand", "reddit"]
+# Every adapter contributes candidates and evidence. The publication policy
+# keeps broad community/editorial/aggregator discovery off the public map until
+# independently corroborated, while current official claims can publish directly.
+sources_enabled = ["places_brand", "reddit", "chains", "slickdeals", "local"]
 
 [freshness]
 stale_after_hours = 24
@@ -16,15 +15,15 @@ stale_after_hours = 24
 # configured coverage floors. `optional` sources are reported but do not fail
 # the workflow; Reddit belongs there because a live IP may be rate-limited even
 # though its browser-UA fetch path is functional.
-# Fetched and stored coverage must both match the committed 43-location verified
-# inventory. Clean Census runs produce 40 pins; the 39-pin floor tolerates one
+# Fetched and stored coverage must both match the committed 44-location verified
+# inventory. Clean Census runs produce at least 41 pins; the 40-pin floor tolerates one
 # transient miss beyond the three reproducible failures while still alerting on
 # additional loss.
 [health]
 expected = ["places_brand"]
-optional = ["reddit"]
-minimum_deals = { places_brand = 43 }
-minimum_pins = { places_brand = 39 }
+optional = ["reddit", "chains", "slickdeals", "local"]
+minimum_deals = { places_brand = 44 }
+minimum_pins = { places_brand = 40 }
 
 [geocoder]
 # provider: "census" (keyless US Census geocoder, the default — works unattended)
@@ -177,4 +176,18 @@ verified_at = "2026-07-16"
 locations = [
   "13201 Aurora Ave N, Seattle, WA 98133",
   "2600 SW Barton St Ste B18, Seattle, WA 98126",
+]
+
+# Verified 2026-07-23 against the Frye Art Museum's official visit page, which
+# states that admission is always free and lists its current Seattle address.
+[[sources.places_brand.brands]]
+id = "frye-art-museum-free-admission"
+name = "Frye Art Museum"
+offer = "Free museum admission every day"
+url = "https://fryemuseum.org/visit"
+eligibility = "General admission is free for all visitors."
+redemption = "Visit during public hours; admission is always free."
+verified_at = "2026-07-23"
+locations = [
+  "704 Terry Ave, Seattle, WA 98104",
 ]

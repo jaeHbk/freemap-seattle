@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS deals (
     first_seen      TIMESTAMP,
     last_seen       TIMESTAMP,       -- stamped every scrape run — freshness core
     status          TEXT NOT NULL DEFAULT 'active',  -- seeded default; live freshness recomputed at read via compute_status()
+    candidate_id    INTEGER,
+    source_tier     TEXT,
+    verification_status TEXT,
+    evidence_count  INTEGER,
+    quality_score   INTEGER,
+    publication_reason TEXT,
     UNIQUE(source, source_id)
 );
 
@@ -31,6 +37,59 @@ CREATE INDEX IF NOT EXISTS idx_deals_dedup_key ON deals(dedup_key);
 
 -- Spatial path: the map query filters lat/lng to a bbox (fetch_deals_in_bbox).
 CREATE INDEX IF NOT EXISTS idx_deals_lat_lng ON deals(lat, lng);
+
+CREATE TABLE IF NOT EXISTS deal_candidates (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    source          TEXT NOT NULL,
+    source_id       TEXT NOT NULL,
+    dedup_key       TEXT,
+    title           TEXT NOT NULL,
+    url             TEXT NOT NULL,
+    description     TEXT,
+    eligibility     TEXT,
+    redemption      TEXT,
+    verified_at     TIMESTAMP,
+    deal_type       TEXT NOT NULL,
+    category        TEXT NOT NULL,
+    placement       TEXT NOT NULL,
+    lat             REAL,
+    lng             REAL,
+    raw_location    TEXT,
+    geocode_status  TEXT NOT NULL,
+    posted_at       TIMESTAMP,
+    expires_at      TIMESTAMP,
+    source_tier     TEXT NOT NULL,
+    decision        TEXT NOT NULL,   -- "accepted" | "pending" | "rejected"
+    decision_reason TEXT NOT NULL,
+    quality_score   INTEGER NOT NULL,
+    first_seen      TIMESTAMP NOT NULL,
+    last_seen       TIMESTAMP NOT NULL,
+    UNIQUE(source, source_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_candidates_dedup_key
+    ON deal_candidates(dedup_key);
+CREATE INDEX IF NOT EXISTS idx_candidates_decision
+    ON deal_candidates(decision);
+CREATE INDEX IF NOT EXISTS idx_candidates_source_last_seen
+    ON deal_candidates(source, last_seen);
+
+CREATE TABLE IF NOT EXISTS deal_evidence (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    candidate_id    INTEGER NOT NULL,
+    source          TEXT NOT NULL,
+    source_id       TEXT NOT NULL,
+    evidence_type   TEXT NOT NULL,
+    url             TEXT NOT NULL,
+    excerpt         TEXT,
+    content_hash    TEXT NOT NULL,
+    observed_at     TIMESTAMP NOT NULL,
+    FOREIGN KEY(candidate_id) REFERENCES deal_candidates(id),
+    UNIQUE(candidate_id, content_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_evidence_candidate
+    ON deal_evidence(candidate_id);
 
 CREATE TABLE IF NOT EXISTS geocode_cache (
     raw_location    TEXT PRIMARY KEY,
@@ -48,6 +107,9 @@ CREATE TABLE IF NOT EXISTS scrape_runs (
     deals_upserted  INTEGER,
     map_pins        INTEGER,
     geocode_failures INTEGER,
+    candidates_staged INTEGER,
+    candidates_pending INTEGER,
+    candidates_rejected INTEGER,
     duration_ms     INTEGER,
     errors          TEXT
 );

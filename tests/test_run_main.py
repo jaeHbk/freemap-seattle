@@ -136,13 +136,17 @@ def test_full_offline_run_populates_db_and_scrape_runs(tmp_path, monkeypatch):
     # At least one source ran cleanly -> exit 0.
     assert exit_code == 0
 
-    # DB exists and has rows.
+    # DB exists and broad discovery produced staged candidates.
     assert db_file.exists()
     from scrapers.db import connect
 
     conn = connect(str(db_file))
     deal_count = conn.execute("SELECT COUNT(*) AS c FROM deals").fetchone()["c"]
-    assert deal_count > 0, "expected the offline fixtures to produce >=1 deal"
+    candidate_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM deal_candidates"
+    ).fetchone()["c"]
+    assert deal_count == 0
+    assert candidate_count > 0
 
     # Exactly one scrape_runs row per enabled source for this run.
     rows = conn.execute(

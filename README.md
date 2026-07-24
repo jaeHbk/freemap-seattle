@@ -1,8 +1,8 @@
 # FreeMap Seattle
 
-FreeMap surfaces free and buy-one-get-one (BOGO) offers in Seattle. Every
-matching offer appears in the list, while geocoded physical offers also appear
-on an interactive map.
+FreeMap surfaces verified free and buy-one-get-one (BOGO) offers in Seattle.
+Every published offer appears in the list, while geocoded physical offers also
+appear on an interactive map.
 
 ## Production architecture
 
@@ -11,19 +11,22 @@ GitHub Actions (12h cron) --writes--> Turso <--reads-- Next.js on Vercel
              Python scrapers          libSQL          route handlers + UI
 ```
 
-- `scrapers/` fetches enabled sources, classifies and geocodes deals, deduplicates
-  them, and records every source run.
+- `scrapers/` fetches enabled sources, persists candidates and evidence, applies
+  publication policy, geocodes in-scope locations, and records every source run.
 - Turso is the production source of truth. Local development falls back to
   `db/deals.db`.
 - `web-next/` is the production Next.js 16 app. Its API route handlers read
   Turso at request time.
-- `.github/workflows/scrape.yml` runs the scraper and health gate every 12 hours.
+- `.github/workflows/scrape.yml` runs the scraper, health gate, and quality audit
+  every 12 hours.
   `FREEMAP_REQUIRE_TURSO=1` prevents a missing secret from silently writing to
   an ephemeral runner database.
-- Each source run records found/upserted counts, mapped pins, geocode failures,
-  duration, completion time, and error status.
-- The health gate requires all 43 verified `places_brand` deals and at least 39
+- Each source run records discovered, staged, published, pending, and rejected
+  counts plus mapped pins, geocode failures, duration, and error status.
+- The health gate requires all 44 verified `places_brand` deals and at least 40
   current map pins. A partial source or geocoder regression cannot stay green.
+- A database quality audit rejects any public row without accepted evidence,
+  Free/BOGO scope, official or corroborated verification, and a score of 90+.
 - A failed scheduled scrape opens or updates one GitHub issue; the next healthy
   run comments on and closes it.
 
@@ -31,16 +34,19 @@ The scraper and web app communicate only through the database.
 
 ## Production sources
 
-`config.toml` enables only sources that meet the Free/BOGO product scope:
+`config.toml` enables broad discovery without granting every source permission
+to publish:
 
 | Source | Production role | Health policy |
 |---|---|---|
-| `places_brand` | Official Chipotle, MOD, Starbucks, and Ulta Free/BOGO rewards expanded to current Seattle storefront pins | Required |
-| `reddit` | Free/BOGO posts from `r/Seattle`, filtered with word-boundary matching | Optional because runner IPs may be rate-limited |
+| `places_brand` | Current official terms for Chipotle, Frye Art Museum, MOD, Starbucks, and Ulta, expanded to Seattle locations | Publishes after verification and location gates; required |
+| `reddit` | Free/BOGO community posts from `r/Seattle` | Staged pending independent corroboration |
+| `chains` | Official restaurant offer pages | Staged; ordinary discounts are rejected |
+| `slickdeals` | Broad aggregator listings | Staged pending independent corroboration |
+| `local` | Seattle editorial/RSS coverage | Staged pending independent corroboration |
 
-The `chains`, `slickdeals`, and `local` parsers remain implemented and tested,
-but are disabled. Their broad feeds mostly produced ordinary discounts or
-non-deal content, which is outside FreeMap's scope.
+Matching evidence from two independent non-official sources can publish. A
+single community, editorial, or aggregator observation cannot.
 
 ## Local development
 
@@ -65,9 +71,10 @@ closed instead of falling back to SQLite.
 ## Data behavior
 
 Each enabled source implements `fetch(config) -> list[RawDeal]`. The shared
-pipeline normalizes, classifies, geocodes, deduplicates, and upserts those rows.
-A source failure is isolated and recorded in `scrape_runs`; it does not erase
-another source's successful work.
+pipeline normalizes each observation into a candidate, persists evidence,
+applies hard scope/freshness/location gates, and materializes accepted
+candidates into `deals`. A source failure is isolated and recorded in
+`scrape_runs`; it does not erase another source's successful work.
 
 The read API is available under the Next.js app:
 
@@ -108,6 +115,7 @@ are commonly rejected.
 
 ```bash
 ./.venv/bin/pytest -q
+./.venv/bin/python -m scrapers.quality
 
 cd web-next
 npm test
@@ -119,6 +127,9 @@ npm run build
 Source tests use recorded fixtures and mocked HTTP calls. They do not depend on
 live websites. Playwright browser tests mock API and map-provider boundaries
 while exercising the real UI in Chromium.
+
+The reproducible before/after measurements and their limitations are in
+[docs/QUALITY_REPORT.md](docs/QUALITY_REPORT.md).
 
 ## Deploy and operate
 
