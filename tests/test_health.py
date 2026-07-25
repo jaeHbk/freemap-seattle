@@ -109,9 +109,31 @@ def test_expected_source_at_coverage_floors_passes():
     assert result["ok"] is True
 
 
-def test_expected_source_below_stored_coverage_floor_fails():
+def test_staged_candidates_can_be_pending_when_pin_floor_is_met():
+    run = _run(44)
+    run.update(
+        {
+            "candidates_staged": 44,
+            "candidates_pending": 3,
+            "deals_upserted": 41,
+        }
+    )
+    result = evaluate_health(
+        {"places_brand": run},
+        EXPECTED,
+        OPTIONAL,
+        pin_counts={"places_brand": 41},
+        minimum_pins={"places_brand": 40},
+        minimum_deals={"places_brand": 44},
+    )
+
+    assert result["ok"] is True
+    assert result["problems"] == []
+
+
+def test_expected_source_below_staged_coverage_floor_fails():
     run = _run(43)
-    run["deals_upserted"] = 42
+    run["candidates_staged"] = 42
     result = evaluate_health(
         {"places_brand": run},
         EXPECTED,
@@ -123,7 +145,7 @@ def test_expected_source_below_stored_coverage_floor_fails():
 
     assert result["ok"] is False
     assert result["problems"][0]["reason"] == (
-        "upserted 42 deals (minimum: 43)"
+        "staged 42 candidates (minimum: 43)"
     )
 
 

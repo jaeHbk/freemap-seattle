@@ -86,9 +86,10 @@ The health baseline is:
 - `minimum_deals = { places_brand = 44 }`
 - `minimum_pins = { places_brand = 40 }`
 
-Health fails when the latest required run is missing, stale, errored, fetches or
-stores fewer than all 44 configured deals, or produces fewer than 40 current
-map pins.
+Health fails when the latest required run is missing, stale, errored, discovers
+or stages fewer than all 44 configured candidates, or produces fewer than 40
+current map pins. Published count may be lower because candidates that fail a
+publication gate remain pending or rejected.
 The `places_brand` source also fails closed when official terms have not been
 reverified within 30 days or an explicit `expires_at` has passed. Follow
 `TASK.md` to recheck terms and storefronts before the deadline.

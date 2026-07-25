@@ -23,8 +23,10 @@ GitHub Actions (12h cron) --writes--> Turso <--reads-- Next.js on Vercel
   an ephemeral runner database.
 - Each source run records discovered, staged, published, pending, and rejected
   counts plus mapped pins, geocode failures, duration, and error status.
-- The health gate requires all 44 verified `places_brand` deals and at least 40
-  current map pins. A partial source or geocoder regression cannot stay green.
+- The health gate requires discovery and staging of all 44 verified
+  `places_brand` candidates plus at least 40 current map pins. Candidates may
+  remain pending when they fail publication gates without making a healthy
+  discovery run fail.
 - A database quality audit rejects any public row without accepted evidence,
   Free/BOGO scope, official or corroborated verification, and a score of 90+.
 - A failed scheduled scrape opens or updates one GitHub issue; the next healthy

@@ -2,9 +2,9 @@
 
 Reads the LATEST scrape_runs row per source and decides PASS/FAIL against the
 [health] baseline in config.toml: an EXPECTED source must have a latest run that
-neither errored nor falls below its known deal and fresh-pin coverage floors.
-OPTIONAL sources are reported but never alerted; Reddit is optional because a
-live runner IP can still be rate-limited.
+neither errored nor falls below its discovery, staging, or fresh-pin coverage
+floors. OPTIONAL sources are reported but never alerted; Reddit is optional
+because a live runner IP can still be rate-limited.
 
 Run as `python -m scrapers.health` (exit 0 = healthy, 1 = an expected source is
 unhealthy or missing). The decision core, evaluate_health(), is pure so it's
@@ -61,7 +61,7 @@ def load_minimum_pins(config_path: str) -> dict[str, int]:
 
 
 def load_minimum_deals(config_path: str) -> dict[str, int]:
-    """Read per-source minimum fetched deal coverage from [health]."""
+    """Read per-source minimum discovered and staged coverage from [health]."""
     configured = _load_health_table(config_path).get(
         "minimum_deals", _DEFAULT_MINIMUM_DEALS
     )
@@ -108,8 +108,10 @@ def evaluate_health(
       source that didn't run this cycle inherits a prior healthy row.
 
     An expected source is a problem when its latest run is MISSING, STALE,
-    errored, or misses its fetched-deal or fresh-pin minimum. Returns
-    {"ok": bool, "problems": [...]}.
+    errored, or misses its discovered-deal, staged-candidate, or fresh-pin
+    minimum. Published counts can be lower than staged counts because pending
+    and rejected candidates are expected outcomes of the publication policy.
+    Returns {"ok": bool, "problems": [...]}.
     """
     pin_counts = pin_counts or {}
     minimum_pins = minimum_pins or {}
@@ -151,16 +153,16 @@ def evaluate_health(
                 }
             )
         elif (
-            run.get("deals_upserted") is not None
-            and run["deals_upserted"] < minimum_deals.get(source, 0)
+            run.get("candidates_staged") is not None
+            and run["candidates_staged"] < minimum_deals.get(source, 0)
         ):
-            upserted = run["deals_upserted"]
+            staged = run["candidates_staged"]
             required = minimum_deals[source]
             problems.append(
                 {
                     "source": source,
                     "reason": (
-                        f"upserted {upserted} deals (minimum: {required})"
+                        f"staged {staged} candidates (minimum: {required})"
                     ),
                     "deals_found": found,
                     "errors": None,

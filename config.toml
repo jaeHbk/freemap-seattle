@@ -15,10 +15,11 @@ stale_after_hours = 24
 # configured coverage floors. `optional` sources are reported but do not fail
 # the workflow; Reddit belongs there because a live IP may be rate-limited even
 # though its browser-UA fetch path is functional.
-# Fetched and stored coverage must both match the committed 44-location verified
-# inventory. Clean Census runs produce at least 41 pins; the 40-pin floor tolerates one
-# transient miss beyond the three reproducible failures while still alerting on
-# additional loss.
+# Discovery and staging must both match the committed 44-location verified
+# inventory. Clean Census runs produce at least 41 published pins; the 40-pin
+# floor tolerates one transient miss beyond the three reproducible failures
+# while still alerting on additional loss. Candidates that fail the location
+# gate may remain pending without violating the publication-coverage floor.
 [health]
 expected = ["places_brand"]
 optional = ["reddit", "chains", "slickdeals", "local"]
