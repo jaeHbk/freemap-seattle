@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Hanken_Grotesk } from "next/font/google";
+import { Theme } from "@astryxdesign/core";
+import { freemapTheme } from "@/theme/freemap";
 import "./globals.css";
 
 // Editorial pairing: a characterful optical serif for display, a clean
@@ -62,7 +64,11 @@ export default function RootLayout({
       lang="en"
       className={`${fraunces.variable} ${hanken.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <Theme theme={freemapTheme} mode="light">
+          {children}
+        </Theme>
+      </body>
     </html>
   );
 }

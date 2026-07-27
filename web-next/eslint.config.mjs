@@ -15,6 +15,9 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
     "next-env.d.ts",
+    "theme/freemap.js",
+    "theme/freemap.d.ts",
+    "theme/freemap.variants.d.ts",
   ]),
 ]);
 

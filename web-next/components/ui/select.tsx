@@ -32,7 +32,7 @@ export function FieldSelect({
   const current = options.find((o) => o.value === value);
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-sm font-medium leading-5 text-muted-foreground">
         {icon}
         {label}
       </span>
@@ -45,9 +45,9 @@ export function FieldSelect({
           id={id}
           aria-label={label}
           className={cn(
-            "group flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-border bg-card/80 px-3.5 text-sm font-medium text-foreground shadow-sm",
-            "transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            "data-[popup-open]:border-primary/60"
+            "group flex h-7 w-full items-center justify-between gap-2 rounded-lg border border-input bg-card px-3 text-sm text-foreground",
+            "transition-[border-color,box-shadow] hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35",
+            "data-[popup-open]:border-primary"
           )}
         >
           <BaseSelect.Value>{current?.label ?? "All"}</BaseSelect.Value>
@@ -59,7 +59,7 @@ export function FieldSelect({
           <BaseSelect.Positioner sideOffset={6} className="z-[1100]">
             <BaseSelect.Popup
               className={cn(
-                "max-h-[min(20rem,var(--available-height))] min-w-[var(--anchor-width)] origin-[var(--transform-origin)] overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl",
+                "max-h-[min(20rem,var(--available-height))] min-w-[var(--anchor-width)] origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-xl",
                 "transition-[transform,opacity] data-[starting-style]:scale-95 data-[starting-style]:opacity-0 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 motion-reduce:transition-none"
               )}
             >
@@ -68,7 +68,7 @@ export function FieldSelect({
                   key={opt.value || "all"}
                   value={opt.value}
                   className={cn(
-                    "flex cursor-default select-none items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm outline-none",
+                    "flex min-h-7 cursor-default select-none items-center justify-between gap-3 rounded-md px-2 py-1 text-sm outline-none",
                     "data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                   )}
                 >

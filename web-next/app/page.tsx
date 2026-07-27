@@ -3,6 +3,17 @@
 import * as React from "react";
 import { Drawer } from "@base-ui/react/drawer";
 import {
+  AppShell,
+  Button,
+  Heading,
+  IconButton,
+  NavIcon,
+  StatusDot,
+  Text,
+  TopNav,
+  TopNavHeading,
+} from "@astryxdesign/core";
+import {
   Bell,
   Heart,
   MapPinned,
@@ -12,8 +23,6 @@ import {
   TriangleAlert,
   RefreshCw,
 } from "lucide-react";
-
-import Link from "next/link";
 
 import { Filters } from "@/components/Filters";
 import {
@@ -520,117 +529,104 @@ export default function Home() {
   ]);
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      {/* Skip link — first focusable element, jumps keyboard users to content. */}
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[1100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
-      >
-        Skip to deals
-      </a>
-
-      {/* Topbar */}
-      <header className="sticky top-0 z-[600] border-b border-border bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-wrap items-center gap-4 px-4 py-3 md:flex-nowrap md:px-6">
-          {/* The brand IS the page H1 — the document's top-level heading. */}
-          <h1 className="m-0">
-            <Link href="/" className="flex items-center gap-2.5">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-                <MapPinned className="size-5" />
-              </span>
-              <span className="flex flex-col leading-none">
-                <span className="font-heading text-xl font-semibold tracking-tight text-foreground">
-                  FreeMap
-                </span>
-                <span className="text-[0.7rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                  Seattle
-                </span>
-              </span>
-              <span className="sr-only"> — free &amp; BOGO deals in Seattle</span>
-            </Link>
-          </h1>
-
-          {/* Single source-of-truth tablist (one in the a11y tree at every
-              viewport) — wraps under the brand on very narrow screens. */}
-          <div className="md:ml-auto">
+    <AppShell
+      height="fill"
+      variant="section"
+      contentPadding={0}
+      mobileNav={false}
+      topNav={
+        <TopNav
+          label="FreeMap navigation"
+          heading={
+            <TopNavHeading
+              logo={<NavIcon icon={<MapPinned />} />}
+              heading="FreeMap"
+              subheading="Seattle"
+              headingHref="/"
+            />
+          }
+          startContent={
             <ViewTabs
               value={view}
               onValueChange={setView}
               mapCount={mapDeals.length}
               listCount={listDeals.length}
             />
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setFavoritesOnly((current) => !current)}
-              aria-label={
-                favoritesOnly ? "Show all deals" : "Show favorites only"
-              }
-              aria-pressed={favoritesOnly}
-              title={
-                favoritesOnly ? "Show all deals" : "Show favorites only"
-              }
-              className={cn(
-                "relative flex size-9 items-center justify-center rounded-lg border transition-colors",
-                favoritesOnly
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              )}
-            >
-              <Heart
-                className="size-4"
-                fill={favoritesOnly ? "currentColor" : "none"}
-              />
-              {favoriteDealKeys.size > 0 && (
-                <span className="absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.625rem] font-semibold leading-4 text-primary-foreground">
-                  {favoriteDealKeys.size}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAlertsOpen(true)}
-              aria-label="Open deal alerts"
-              title="Deal alerts"
-              className="relative flex size-9 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Bell className="size-4" />
-              {alertPreferences.enabled && (
-                <span
-                  className="absolute right-1.5 top-1.5 size-2 rounded-full border-2 border-background bg-emerald-500"
-                  aria-hidden="true"
+          }
+          endContent={
+            <div className="flex items-center gap-1">
+              <FreshnessBadge value={freshness} />
+              <span className="relative inline-flex">
+                <IconButton
+                  label={
+                    favoritesOnly ? "Show all deals" : "Show favorites only"
+                  }
+                  tooltip={
+                    favoritesOnly ? "Show all deals" : "Show favorites only"
+                  }
+                  icon={
+                    <Heart
+                      fill={favoritesOnly ? "currentColor" : "none"}
+                    />
+                  }
+                  variant={favoritesOnly ? "primary" : "ghost"}
+                  size="sm"
+                  aria-pressed={favoritesOnly}
+                  onClick={() => setFavoritesOnly((current) => !current)}
                 />
-              )}
-            </button>
-          </div>
+                {favoriteDealKeys.size > 0 && (
+                  <span className="absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[0.625rem] font-semibold leading-4 text-primary-foreground">
+                    {favoriteDealKeys.size}
+                  </span>
+                )}
+              </span>
+              <span className="relative inline-flex">
+                <IconButton
+                  label="Open deal alerts"
+                  tooltip="Deal alerts"
+                  icon={<Bell />}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAlertsOpen(true)}
+                />
+                {alertPreferences.enabled && (
+                  <span
+                    className="absolute right-1 top-1 size-2 rounded-full border-2 border-background bg-emerald-500"
+                    aria-hidden="true"
+                  />
+                )}
+              </span>
+              <span className="md:hidden">
+                <IconButton
+                  label="Open filters"
+                  tooltip="Filters"
+                  icon={<SlidersHorizontal />}
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setDrawerOpen(true)}
+                />
+              </span>
+            </div>
+          }
+        />
+      }
+    >
+      <Heading level={1} className="sr-only">
+        FreeMap Seattle, free and BOGO deals
+      </Heading>
 
-          <FreshnessBadge value={freshness} />
-
-          {/* Mobile filter trigger */}
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-sm font-medium md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Open filters"
-          >
-            <SlidersHorizontal className="size-4" />
-          </button>
-        </div>
-
-      </header>
-
-      <div className="mx-auto flex w-full max-w-[1400px] flex-1 gap-6 px-4 py-6 sm:px-6">
-        {/* Desktop sidebar. "Filters" is a control-group label, not document
-            structure, so it's a plain styled label (no heading level under H1). */}
-        <aside className="hidden w-64 shrink-0 md:block" aria-label="Filters">
-          <div className="sticky top-24 rounded-2xl border border-border bg-card/60 p-5">
-            <p className="mb-5 flex items-center gap-2 font-heading text-base font-semibold text-foreground">
-              <SlidersHorizontal className="size-4 text-primary" />
-              Filters
-            </p>
+      <div className="mx-auto flex h-full w-full max-w-[1440px] gap-5 px-4 py-4 sm:px-5">
+        <aside
+          className="hidden w-60 shrink-0 border-r border-border pr-5 md:block"
+          aria-label="Filters"
+        >
+          <div className="sticky top-0">
+            <div className="mb-5 flex items-center gap-2">
+              <SlidersHorizontal className="size-4 text-primary" aria-hidden />
+              <Text type="label" weight="semibold">
+                Filter deals
+              </Text>
+            </div>
             <Filters
               state={filters}
               onChange={setFilters}
@@ -640,9 +636,7 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* Main panel. The active view is a real tabpanel: id + aria-labelledby
-            back to its tab + tabIndex so keyboard users can land on it. */}
-        <main id="main" className="flex min-w-0 flex-1 flex-col">
+        <div id="main" className="flex min-w-0 flex-1 flex-col">
           <LocationSearch origin={origin} onOriginChange={changeOrigin} />
           {state.kind === "error" ? (
             <ErrorPanel message={state.message} onRetry={() => setReloadKey((k) => k + 1)} />
@@ -651,10 +645,10 @@ export default function Home() {
           ) : view === "map" ? (
             <section
               id={PANEL_IDS.map}
-              role="tabpanel"
+              role="region"
               aria-labelledby={TAB_IDS.map}
               tabIndex={0}
-              className="h-[calc(100dvh-13rem)] min-h-[420px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              className="h-[calc(100dvh-8.5rem)] min-h-[420px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <DealMap
                 deals={mapDeals}
@@ -670,10 +664,10 @@ export default function Home() {
           ) : (
             <section
               id={PANEL_IDS.list}
-              role="tabpanel"
+              role="region"
               aria-labelledby={TAB_IDS.list}
               tabIndex={0}
-              className="focus-visible:outline-none"
+              className="min-h-0 focus-visible:outline-none"
             >
               <DealList
                 deals={listDeals}
@@ -688,10 +682,9 @@ export default function Home() {
               />
             </section>
           )}
-        </main>
+        </div>
       </div>
 
-      {/* Mobile filter drawer */}
       <Drawer.Root
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
@@ -702,16 +695,16 @@ export default function Home() {
           <Drawer.Viewport className="pointer-events-none fixed inset-0 z-[1000]">
             <Drawer.Popup
               className={cn(
-                "pointer-events-auto fixed inset-y-0 right-0 flex w-[min(20rem,90vw)] flex-col bg-background p-6 shadow-2xl",
+                "pointer-events-auto fixed inset-y-0 right-0 flex w-[min(20rem,90vw)] flex-col border-l border-border bg-background p-6 shadow-2xl",
                 "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] data-[ending-style]:translate-x-full data-[starting-style]:translate-x-full motion-reduce:transition-none"
               )}
             >
               <div className="mb-5 flex items-center justify-between">
-                <Drawer.Title className="font-heading text-lg font-semibold text-foreground">
+                <Drawer.Title className="text-lg font-semibold text-foreground">
                   Filters
                 </Drawer.Title>
                 <Drawer.Close
-                  className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   aria-label="Close filters"
                 >
                   <X className="size-4" />
@@ -758,7 +751,7 @@ export default function Home() {
         }
         onCheckNow={checkForNewDeals}
       />
-    </div>
+    </AppShell>
   );
 }
 
@@ -783,13 +776,12 @@ function FreshnessBadge({ value }: { value: string | null }) {
     <span
       role="status"
       aria-label={`Deals ${value ? "last updated" : "are live"}`}
-      className="hidden items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs font-medium text-muted-foreground lg:inline-flex"
+      className="hidden items-center gap-2 px-2 lg:inline-flex"
     >
-      <span className="relative flex size-2" aria-hidden="true">
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/60 motion-reduce:hidden" />
-        <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-      </span>
-      {dateTime ? <time dateTime={dateTime}>{label}</time> : label}
+      <StatusDot variant="success" label="Deal data is live" isPulsing />
+      <Text type="supporting">
+        {dateTime ? <time dateTime={dateTime}>{label}</time> : label}
+      </Text>
     </span>
   );
 }
@@ -813,14 +805,12 @@ function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void
         <p className="font-heading text-lg font-semibold text-foreground">Couldn&apos;t load deals</p>
         <p className="mt-1 max-w-sm text-sm text-muted-foreground">{message}</p>
       </div>
-      <button
-        type="button"
+      <Button
+        label="Try again"
+        variant="primary"
+        icon={<RefreshCw />}
         onClick={onRetry}
-        className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      >
-        <RefreshCw className="size-4" />
-        Try again
-      </button>
+      />
     </div>
   );
 }

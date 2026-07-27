@@ -1,12 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Gift, Tag, Layers, MapPin, RotateCcw } from "lucide-react";
-import { FieldSelect } from "@/components/ui/select";
-import { Toggle } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
+import {
+  Button,
+  Divider,
+  Switch,
+  Text,
+  VStack,
+} from "@astryxdesign/core";
+import { RotateCcw } from "lucide-react";
 import type { FilterState, DealType, Category, Placement } from "@/components/deals";
 import { EMPTY_FILTERS } from "@/components/deals";
+import { FieldSelect } from "@/components/ui/select";
 
 const TYPE_OPTS = [
   { label: "All deals", value: "" },
@@ -47,11 +52,10 @@ export function Filters({ state, onChange, idPrefix, count }: FiltersProps) {
     state.includeStale;
 
   return (
-    <div className="flex flex-col gap-6">
+    <VStack gap={4}>
       <FieldSelect
         id={`${idPrefix}-filter-type`}
         label="Deal type"
-        icon={<Gift className="size-3.5" />}
         value={state.type}
         onValueChange={(v) => set("type", v as "" | DealType)}
         options={TYPE_OPTS}
@@ -59,7 +63,6 @@ export function Filters({ state, onChange, idPrefix, count }: FiltersProps) {
       <FieldSelect
         id={`${idPrefix}-filter-category`}
         label="Category"
-        icon={<Tag className="size-3.5" />}
         value={state.category}
         onValueChange={(v) => set("category", v as "" | Category)}
         options={CATEGORY_OPTS}
@@ -67,49 +70,40 @@ export function Filters({ state, onChange, idPrefix, count }: FiltersProps) {
       <FieldSelect
         id={`${idPrefix}-filter-placement`}
         label="Where"
-        icon={<MapPin className="size-3.5" />}
         value={state.placement}
         onValueChange={(v) => set("placement", v as "" | Placement)}
         options={PLACEMENT_OPTS}
       />
 
-      <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+      <Divider />
 
-      <div className="flex flex-col gap-1.5">
-        <span className="flex items-center gap-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-          <Layers className="size-3.5" />
-          Freshness
-        </span>
-        <Toggle
-          id={`${idPrefix}-filter-stale`}
-          label="Show stale deals"
-          checked={state.includeStale}
-          onCheckedChange={(c) => set("includeStale", c)}
-        />
-      </div>
+      <Switch
+        id={`${idPrefix}-filter-stale`}
+        label="Show stale deals"
+        description="Include offers that may no longer be available"
+        value={state.includeStale}
+        onChange={(checked) => set("includeStale", checked)}
+        labelSpacing="spread"
+        labelPosition="start"
+      />
 
       {typeof count === "number" && (
-        <p className="text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground tabular-nums">{count}</span>{" "}
+        <Text type="supporting" display="block" hasTabularNumbers>
+          <Text type="inherit" color="primary" weight="semibold">
+            {count}
+          </Text>{" "}
           {count === 1 ? "deal" : "deals"} match
-        </p>
+        </Text>
       )}
 
-      <button
-        type="button"
-        disabled={!dirty}
+      <Button
+        label="Clear filters"
+        icon={<RotateCcw />}
+        size="sm"
+        width="100%"
+        isDisabled={!dirty}
         onClick={() => onChange(EMPTY_FILTERS)}
-        className={cn(
-          "flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-medium transition-colors",
-          dirty
-            ? "text-foreground hover:border-primary/40 hover:bg-accent"
-            : "cursor-not-allowed text-muted-foreground/50",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        )}
-      >
-        <RotateCcw className="size-3.5" />
-        Clear filters
-      </button>
-    </div>
+      />
+    </VStack>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { Button, IconButton } from "@astryxdesign/core";
 import {
-  Loader2,
   LocateFixed,
   MapPin,
   Search,
@@ -130,48 +130,40 @@ export function LocationSearch({
               <option key={neighborhood.name} value={neighborhood.name} />
             ))}
           </datalist>
-          <button
+          <IconButton
             type="submit"
-            disabled={!query.trim() || pending !== null}
-            title="Search location"
-            aria-label="Search location"
-            className="mr-1 flex size-8 items-center justify-center rounded-md text-primary transition-colors hover:bg-accent disabled:text-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {pending === "search" ? (
-              <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
-            ) : (
-              <Search className="size-4" />
-            )}
-          </button>
+            label="Search location"
+            tooltip="Search location"
+            icon={<Search />}
+            size="sm"
+            variant="ghost"
+            isDisabled={!query.trim() || pending !== null}
+            isLoading={pending === "search"}
+          />
         </form>
 
-        <button
-          type="button"
+        <Button
+          label="Near me"
+          icon={<LocateFixed />}
+          size="sm"
+          variant="secondary"
           onClick={locate}
-          disabled={pending !== null}
-          className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-accent disabled:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {pending === "geolocation" ? (
-            <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
-          ) : (
-            <LocateFixed className="size-4 text-primary" />
-          )}
-          Near me
-        </button>
+          isDisabled={pending !== null}
+          isLoading={pending === "geolocation"}
+        />
 
         {origin && (
           <span className="inline-flex h-10 max-w-full items-center gap-2 rounded-lg border border-primary/25 bg-primary/8 px-3 text-sm font-medium text-foreground">
             <MapPin className="size-4 shrink-0 text-primary" aria-hidden />
             <span className="max-w-56 truncate">{origin.label}</span>
-            <button
-              type="button"
+            <IconButton
+              label="Clear location"
+              tooltip="Clear location"
+              icon={<X />}
+              size="sm"
+              variant="ghost"
               onClick={() => onOriginChange(null)}
-              title="Clear location"
-              aria-label="Clear location"
-              className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <X className="size-3.5" />
-            </button>
+            />
           </span>
         )}
       </div>

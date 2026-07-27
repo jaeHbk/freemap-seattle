@@ -1,6 +1,15 @@
 "use client";
 
 import * as React from "react";
+import {
+  Badge,
+  Button,
+  Heading,
+  IconButton,
+  Item,
+  StatusDot,
+  Text,
+} from "@astryxdesign/core";
 import { motion, useReducedMotion } from "motion/react";
 import {
   Clock,
@@ -13,10 +22,6 @@ import {
   SearchX,
   Heart,
 } from "lucide-react";
-import {
-  TextureCard,
-  TextureCardContent,
-} from "@/components/ui/texture-card";
 import { cn } from "@/lib/utils";
 import { safeHttpUrl } from "@/components/deals";
 import type { Deal } from "@/components/deals";
@@ -53,19 +58,37 @@ function locationPresentation(deal: Deal) {
   };
 }
 
-function ShapeGlyph({ shape, color }: { shape: string; color: string }) {
+function ShapeGlyph({ shape }: { shape: string }) {
   const base = "inline-block size-2.5 shrink-0";
   if (shape === "square")
-    return <span className={cn(base, "rounded-[2px]")} style={{ background: color }} aria-hidden />;
+    return <span className={cn(base, "rounded-[2px] bg-current")} aria-hidden />;
   if (shape === "diamond")
     return (
       <span
-        className={cn(base, "rotate-45 rounded-[1px]")}
-        style={{ background: color }}
+        className={cn(base, "rotate-45 rounded-[1px] bg-current")}
         aria-hidden
       />
     );
-  return <span className={cn(base, "rounded-full")} style={{ background: color }} aria-hidden />;
+  return <span className={cn(base, "rounded-full bg-current")} aria-hidden />;
+}
+
+const TYPE_BADGE_VARIANT = {
+  free: "green",
+  bogo: "blue",
+  other: "orange",
+} as const;
+
+function evidenceSummary(deal: Deal): string {
+  const source =
+    deal.verification_status === "official"
+      ? "Official source"
+      : deal.verification_status === "corroborated"
+        ? "Corroborated"
+        : "Source reported";
+  if (!deal.evidence_count) return source;
+  return `${source} · ${deal.evidence_count} ${
+    deal.evidence_count === 1 ? "source" : "sources"
+  }`;
 }
 
 interface DealCardProps {
@@ -105,133 +128,128 @@ function DealCard({
     <motion.li
       data-deal-id={dealId}
       aria-current={selected ? "true" : undefined}
+      className={cn(
+        "transition-colors",
+        selected && "bg-accent/50",
+      )}
       onFocusCapture={() => onSelectDeal(dealId)}
       initial={reduce ? false : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: Math.min(index * 0.03, 0.3), ease: [0.22, 1, 0.36, 1] }}
     >
-      <TextureCard
+      <Item
+        as="div"
+        density="spacious"
+        align="start"
         className={cn(
-          "h-full transition-[opacity,box-shadow,border-color]",
+          "max-sm:flex-col max-sm:items-stretch",
           stale && "opacity-65",
-          selected && "border-primary/60 ring-2 ring-primary/20",
         )}
-      >
-        <TextureCardContent className="flex h-full flex-col gap-3 p-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold"
-              style={{ background: `${ts.color}1a`, color: ts.color }}
-            >
-              <ShapeGlyph shape={ts.shape} color={ts.color} />
-              {ts.label}
-            </span>
-            <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize text-muted-foreground">
-              {deal.category}
-            </span>
-            <button
-              type="button"
-              onClick={() => onToggleFavorite(deal)}
-              aria-label={`${favorite ? "Remove" : "Add"} ${deal.title} ${
-                favorite ? "from" : "to"
-              } favorites`}
-              aria-pressed={favorite}
-              title={favorite ? "Remove from favorites" : "Add to favorites"}
-              className={cn(
-                "ml-auto flex size-8 items-center justify-center rounded-lg transition-colors",
-                favorite
-                  ? "bg-primary/10 text-primary hover:bg-primary/20"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              )}
-            >
-              <Heart
-                className="size-4"
-                fill={favorite ? "currentColor" : "none"}
-              />
-            </button>
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-medium",
-                stale
-                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                  : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-              )}
-            >
-              {stale && <Clock className="size-3" />}
-              {STATUS_LABEL[deal.status]}
-            </span>
-          </div>
-
-          <h3 className="font-heading text-lg font-semibold leading-snug text-foreground">
-            {deal.title}
-          </h3>
-
-          {deal.description && (
-            <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-              {deal.description}
-            </p>
-          )}
-
-          <div className="mt-auto flex items-end justify-between gap-3 pt-1 text-xs text-muted-foreground">
-            <span className="flex min-w-0 flex-col gap-1">
-              <span className="inline-flex items-center gap-1.5 font-medium text-foreground/75">
-                {location.icon}
-                {location.label}
-                {distance != null && (
-                  <span className="tabular-nums text-muted-foreground">
-                    · {distance < 0.1 ? "<0.1" : distance.toFixed(1)} mi
-                  </span>
-                )}
-              </span>
-              {location.detail && (
-                <span className="line-clamp-2 leading-snug">
-                  {location.detail}
+        startContent={
+          <Badge
+            variant={TYPE_BADGE_VARIANT[deal.deal_type] ?? "orange"}
+            icon={<ShapeGlyph shape={ts.shape} />}
+            label={ts.label}
+          />
+        }
+        label={
+          <div className="min-w-0">
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
+              <Text type="supporting" className="capitalize">
+                {deal.category}
+              </Text>
+              {stale ? (
+                <Badge variant="warning" icon={<Clock />} label={STATUS_LABEL[deal.status]} />
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <StatusDot variant="success" label="Active deal" />
+                  <Text type="supporting">{STATUS_LABEL[deal.status]}</Text>
                 </span>
               )}
-            </span>
-            <span className="flex shrink-0 flex-col items-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onSelectDeal(dealId);
-                  onViewDetails(dealId);
-                }}
-                className="inline-flex items-center gap-1 rounded-md font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <Info className="size-3.5" />
-                Details
-              </button>
-              {mapped && (
-                <button
-                  type="button"
-                  onClick={() => onShowOnMap(dealId)}
-                  className="inline-flex items-center gap-1 rounded-md font-semibold text-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <Map className="size-3.5" />
-                  Show on map
-                </button>
-              )}
-              {href ? (
-                <a
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-md font-semibold text-primary transition-colors hover:text-primary/80",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                  )}
-                >
-                  View deal
-                  <ExternalLink className="size-3.5" />
-                </a>
-              ) : (
-                <span className="italic text-muted-foreground/70">link unavailable</span>
-              )}
-            </span>
+            </div>
+            <Heading level={3} maxLines={2}>
+              {deal.title}
+            </Heading>
           </div>
-        </TextureCardContent>
-      </TextureCard>
+        }
+        description={
+          <div className="mt-2 flex min-w-0 flex-col gap-2">
+            {deal.description && (
+              <Text type="supporting" maxLines={2}>
+                {deal.description}
+              </Text>
+            )}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                {location.icon}
+                <Text type="supporting" color="primary">
+                  {location.label}
+                </Text>
+                {distance != null && (
+                  <Text type="supporting" hasTabularNumbers>
+                    · {distance < 0.1 ? "<0.1" : distance.toFixed(1)} mi
+                  </Text>
+                )}
+              </span>
+              <Text type="supporting">{evidenceSummary(deal)}</Text>
+            </div>
+            {location.detail && (
+              <Text type="supporting" maxLines={1}>
+                {location.detail}
+              </Text>
+            )}
+          </div>
+        }
+        endContent={
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 max-sm:w-full max-sm:justify-start">
+            <IconButton
+              label={`${favorite ? "Remove" : "Add"} ${deal.title} ${
+                favorite ? "from" : "to"
+              } favorites`}
+              tooltip={favorite ? "Remove from favorites" : "Add to favorites"}
+              icon={<Heart fill={favorite ? "currentColor" : "none"} />}
+              variant={favorite ? "primary" : "ghost"}
+              size="sm"
+              aria-pressed={favorite}
+              onClick={() => onToggleFavorite(deal)}
+            />
+            <Button
+              label="Details"
+              icon={<Info />}
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onSelectDeal(dealId);
+                onViewDetails(dealId);
+              }}
+            />
+            {mapped && (
+              <Button
+                label="Show on map"
+                icon={<Map />}
+                variant="ghost"
+                size="sm"
+                onClick={() => onShowOnMap(dealId)}
+              />
+            )}
+            {href ? (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs font-semibold text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                View deal
+                <ExternalLink className="size-3.5" />
+              </a>
+            ) : (
+              <Text type="supporting" color="disabled">
+                Link unavailable
+              </Text>
+            )}
+          </div>
+        }
+      />
     </motion.li>
   );
 }
@@ -300,7 +318,7 @@ export function DealList({
   return (
     <ul
       ref={listRef}
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+      className="divide-y divide-border border-y border-border bg-card"
     >
       {deals.map((d, i) => (
         <DealCard
