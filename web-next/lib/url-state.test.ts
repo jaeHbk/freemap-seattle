@@ -14,6 +14,7 @@ test("parseUrlState returns defaults for an empty query", () => {
 
 test("URL state round trips every shareable application field", () => {
   const state: AppUrlState = {
+    market: "atlanta",
     view: "list",
     filters: {
       type: "bogo",
@@ -22,21 +23,21 @@ test("URL state round trips every shareable application field", () => {
       includeStale: true,
     },
     origin: {
-      lat: 47.623123,
-      lng: -122.316543,
-      label: "Capitol Hill",
+      lat: 33.764123,
+      lng: -84.371321,
+      label: "Old Fourth Ward",
       source: "geolocation",
     },
     selectedDealId: "deal:42",
     detailsOpen: true,
-    mapViewport: { lat: 47.61, lng: -122.33, zoom: 14.375 },
+    mapViewport: { lat: 33.764, lng: -84.371, zoom: 14.375 },
   };
 
   const serialized = serializeUrlState(state);
   assert.deepEqual(parseUrlState(serialized), {
     ...state,
-    origin: { ...state.origin, lat: 47.62312, lng: -122.31654 },
-    mapViewport: { lat: 47.61, lng: -122.33, zoom: 14.38 },
+    origin: { ...state.origin, lat: 33.76412, lng: -84.37132 },
+    mapViewport: { lat: 33.764, lng: -84.371, zoom: 14.38 },
   });
 });
 
@@ -44,6 +45,7 @@ test("parseUrlState ignores malformed and out-of-range values", () => {
   const parsed = parseUrlState(
     new URLSearchParams({
       view: "grid",
+      market: "chicago",
       type: "coupon",
       category: "travel",
       placement: "mail",

@@ -1,6 +1,6 @@
 # FreeMap Next.js app
 
-This directory contains the production FreeMap Seattle UI and read API.
+This directory contains the production FreeMap UI and read API.
 
 ## Local development
 
@@ -17,9 +17,10 @@ Open <http://localhost:3000>. Without Turso variables, local development reads
 The interactive map uses MapLibre GL with keyless OpenFreeMap vector tiles.
 There is no map API key or billing account to configure.
 
-Location discovery recognizes common Seattle neighborhoods locally and uses the
-keyless US Census geocoder for street-address searches. Browser geolocation is
-used only after the user chooses **Near me**.
+Location discovery recognizes common Seattle and Atlanta neighborhoods locally
+and uses the keyless US Census geocoder for street-address searches. Physical
+deals are scoped to the selected market while online offers appear in both.
+Browser geolocation is used only after the user chooses **Near me**.
 
 ## Validation
 

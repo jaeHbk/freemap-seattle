@@ -1,4 +1,5 @@
 // Shared response types and pure presentation helpers for the FreeMap UI.
+import { DEFAULT_MARKET, type Market } from "../lib/markets.ts";
 
 export type DealType = "free" | "bogo" | "other";
 export type Category = "food" | "retail" | "event" | "other";
@@ -52,9 +53,6 @@ export const EMPTY_FILTERS: FilterState = {
   includeStale: false,
 };
 
-export const SEATTLE: [number, number] = [47.6062, -122.3321];
-export const SEATTLE_ZOOM = 12;
-
 // safeHttpUrl(u) -> u if it is an http(s) URL, else null. Deal data is scraped
 // from UNTRUSTED sources, so we never emit javascript:/data:/etc. as an href.
 export function safeHttpUrl(u: unknown): string | null {
@@ -66,8 +64,12 @@ export function safeHttpUrl(u: unknown): string | null {
 // buildQuery(state) -> querystring (no leading "?") for GET /api/deals.
 // Only truthy filter fields are emitted. NOTE: no bbox — the API excludes
 // coordless deals when a bbox is present, so the map is scoped client-side.
-export function buildQuery(state: FilterState): string {
+export function buildQuery(
+  state: FilterState,
+  market: Market = DEFAULT_MARKET,
+): string {
   const p = new URLSearchParams();
+  if (market !== DEFAULT_MARKET) p.set("market", market);
   if (state.type) p.set("type", state.type);
   if (state.category) p.set("category", state.category);
   if (state.placement) p.set("placement", state.placement);

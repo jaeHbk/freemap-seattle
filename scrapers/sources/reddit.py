@@ -34,7 +34,7 @@ def _is_deal_candidate(title: str, selftext: str | None) -> bool:
     return is_target_deal(title, selftext)
 
 
-# Lower-cased substrings that signal a physical Seattle location in free text.
+# Lower-cased substrings that signal a physical supported-market location.
 # Used to populate raw_location; classify() turns a non-None location into
 # placement="physical". Conservative on purpose — false negatives just demote
 # a deal to the list view, never drop it. These are distinctive multi-word
@@ -53,6 +53,17 @@ _LOCATION_KEYWORDS = (
     "belltown",
     "seattle",
     "bellevue",
+    "atlanta",
+    "buckhead",
+    "east atlanta village",
+    "grant park",
+    "inman park",
+    "little five points",
+    "midtown",
+    "old fourth ward",
+    "virginia-highland",
+    "virginia highland",
+    "west midtown",
 )
 
 # Address-shaped tokens that must match on word boundaries to avoid false

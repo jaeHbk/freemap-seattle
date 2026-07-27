@@ -46,6 +46,13 @@ test("safeHttpUrl accepts only HTTP(S)", () => {
 test("buildQuery emits the filters used by the app", () => {
   assert.equal(buildQuery({ type: "", category: "", placement: "", includeStale: false }), "");
   assert.equal(
+    buildQuery(
+      { type: "", category: "", placement: "", includeStale: false },
+      "atlanta",
+    ),
+    "market=atlanta",
+  );
+  assert.equal(
     buildQuery({ type: "bogo", category: "food", placement: "physical", includeStale: true }),
     "type=bogo&category=food&placement=physical&include_stale=true",
   );

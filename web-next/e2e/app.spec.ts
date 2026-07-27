@@ -83,6 +83,36 @@ const ACTIVE_DEALS: Deal[] = [
     status: "active",
     alt_urls: [],
   },
+  {
+    id: 106,
+    source: "places_brand",
+    source_id: "atlanta-art-106",
+    dedup_key: "atlanta-art",
+    title: "Free contemporary art admission",
+    url: "https://atlantacontemporary.org/visit",
+    description: "Free admission every day.",
+    eligibility: "All visitors.",
+    redemption: "Visit during public hours.",
+    verified_at: "2026-07-27T00:00:00",
+    deal_type: "free",
+    category: "event",
+    placement: "physical",
+    lat: 33.7739,
+    lng: -84.4059,
+    raw_location: "535 Means St NW, Atlanta, GA 30318",
+    geocode_status: "ok",
+    posted_at: null,
+    expires_at: null,
+    first_seen: "2026-07-27T00:00:00",
+    last_seen: "2026-07-27T00:00:00",
+    status: "active",
+    source_tier: "official",
+    verification_status: "official",
+    evidence_count: 1,
+    quality_score: 100,
+    publication_reason: "current_official_evidence",
+    alt_urls: [],
+  },
 ];
 
 const STALE_DEAL: Deal = {
@@ -139,8 +169,26 @@ async function mockBoundaries(page: Page) {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/deals") {
       const includeStale = url.searchParams.get("include_stale") === "true";
+      const market = url.searchParams.get("market") ?? "seattle";
       const deals = [...ACTIVE_DEALS, STALE_DEAL].filter((deal) => {
         if (deal.status === "stale" && !includeStale) return false;
+        if (deal.placement === "physical") {
+          const inMarket =
+            market === "atlanta"
+              ? deal.lat != null &&
+                deal.lng != null &&
+                deal.lat >= 33.55 &&
+                deal.lat <= 34.05 &&
+                deal.lng >= -84.62 &&
+                deal.lng <= -84.15
+              : deal.lat != null &&
+                deal.lng != null &&
+                deal.lat >= 47.45 &&
+                deal.lat <= 47.75 &&
+                deal.lng >= -122.46 &&
+                deal.lng <= -122.2;
+          if (!inMarket) return false;
+        }
         const type = url.searchParams.get("type");
         const category = url.searchParams.get("category");
         const placement = url.searchParams.get("placement");
@@ -176,13 +224,21 @@ async function mockBoundaries(page: Page) {
       return;
     }
     if (url.pathname === "/api/geocode") {
+      const atlanta = url.searchParams.get("market") === "atlanta";
       await route.fulfill({
-        json: {
-          lat: 47.6687,
-          lng: -122.386,
-          label: "Ballard",
-          source: "search",
-        },
+        json: atlanta
+          ? {
+              lat: 33.7641,
+              lng: -84.3713,
+              label: "Old Fourth Ward",
+              source: "search",
+            }
+          : {
+              lat: 47.6687,
+              lng: -122.386,
+              label: "Ballard",
+              source: "search",
+            },
       });
       return;
     }
@@ -450,6 +506,39 @@ test("map, selected deal, location, distance order, and camera stay synchronized
     );
   expect(dealIds).toEqual(["102", "101", "103"]);
   await expect(page.locator('[data-deal-id="102"]')).toContainText("<0.1 mi");
+});
+
+test("Atlanta scopes deals, location search, camera, and URL state", async ({
+  page,
+}) => {
+  await page.goto("/?view=list");
+  await page.getByRole("radio", { name: "Atlanta" }).click();
+
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("market"))
+    .toBe("atlanta");
+  await expect(page.locator("[data-deal-id]")).toHaveCount(2);
+  await expect(page.locator('[data-deal-id="106"]')).toContainText(
+    "Free contemporary art admission",
+  );
+  await expect(page.locator('[data-deal-id="101"]')).toHaveCount(0);
+  await expect(page.locator('[data-deal-id="103"]')).toBeVisible();
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("map"))
+    .toMatch(/^33\.749,-84\.388,/);
+
+  await page
+    .getByLabel("Search by Atlanta neighborhood or address")
+    .fill("O4W");
+  await page.getByRole("button", { name: "Search location" }).click();
+  await expect(page.getByText("Old Fourth Ward", { exact: true })).toBeVisible();
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get("origin_label"))
+    .toBe("Old Fourth Ward");
+
+  await page.reload();
+  await expect(page.getByRole("radio", { name: "Atlanta" })).toBeChecked();
+  await expect(page.locator('[data-deal-id="106"]')).toBeVisible();
 });
 
 test.describe("mobile", () => {

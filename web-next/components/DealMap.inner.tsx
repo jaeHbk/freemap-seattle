@@ -10,9 +10,10 @@ import {
   OPENFREEMAP_STYLE_URL,
 } from "@/components/deal-map-data";
 import { TYPE_STYLE, STATUS_LABEL } from "@/components/deal-style";
-import { safeHttpUrl, SEATTLE, SEATTLE_ZOOM } from "@/components/deals";
+import { safeHttpUrl } from "@/components/deals";
 import type { Deal } from "@/components/deals";
 import type { SearchOrigin } from "@/lib/location";
+import { MARKETS, type Market } from "@/lib/markets";
 import type { MapViewport } from "@/lib/url-state";
 
 const DEAL_SOURCE_ID = "freemap-deals";
@@ -85,6 +86,20 @@ function addPinImages(map: maplibregl.Map) {
       pixelRatio: 2,
     });
   }
+}
+
+function restoreMissingPinImage(
+  map: maplibregl.Map,
+  event: { id: string },
+) {
+  const dealType = Object.entries(PIN_IMAGE_IDS).find(
+    ([, imageId]) => imageId === event.id,
+  )?.[0] as keyof typeof TYPE_STYLE | undefined;
+  if (!dealType || map.hasImage(event.id)) return;
+  const style = TYPE_STYLE[dealType];
+  map.addImage(event.id, createPinImage(style.color, style.shape), {
+    pixelRatio: 2,
+  });
 }
 
 // Build popup DOM with textContent so scraped fields can never inject markup.
@@ -249,6 +264,7 @@ function pointCoordinates(
 }
 
 interface DealMapInnerProps {
+  market: Market;
   deals: Deal[];
   origin: SearchOrigin | null;
   selectedDealId: string | null;
@@ -260,6 +276,7 @@ interface DealMapInnerProps {
 }
 
 export default function DealMapInner({
+  market,
   deals,
   origin,
   selectedDealId,
@@ -316,14 +333,15 @@ export default function DealMapInner({
     let mapSettled = false;
     let map: maplibregl.Map;
     const initialViewport = viewportRef.current;
+    const marketConfig = MARKETS[market];
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
         style: OPENFREEMAP_STYLE_URL,
         center: initialViewport
           ? [initialViewport.lng, initialViewport.lat]
-          : [SEATTLE[1], SEATTLE[0]],
-        zoom: initialViewport?.zoom ?? SEATTLE_ZOOM,
+          : [marketConfig.center[1], marketConfig.center[0]],
+        zoom: initialViewport?.zoom ?? marketConfig.zoom,
         minZoom: 8,
         maxZoom: 19,
         pitchWithRotate: false,
@@ -341,6 +359,9 @@ export default function DealMapInner({
     mapRef.current = map;
     map.touchZoomRotate.disableRotation();
     map.keyboard.disableRotation();
+    const handleMissingPinImage = (event: { id: string }) =>
+      restoreMissingPinImage(map, event);
+    map.on("styleimagemissing", handleMissingPinImage);
 
     map.addControl(
       new maplibregl.NavigationControl({
@@ -546,7 +567,7 @@ export default function DealMapInner({
       const canvas = map.getCanvas();
       canvas.setAttribute(
         "aria-label",
-        `Interactive map showing ${dealsRef.current.length} mapped deals`,
+        `Interactive ${marketConfig.label} map showing ${dealsRef.current.length} mapped deals`,
       );
       syncDealTargets();
       focusOrigin(originRef.current, !initialViewport);
@@ -595,10 +616,11 @@ export default function DealMapInner({
       focusOriginRef.current = () => {};
       openSelectedDealRef.current = () => {};
       for (const target of dealTargets.values()) target.marker.remove();
+      map.off("styleimagemissing", handleMissingPinImage);
       mapRef.current = null;
       map.remove();
     };
-  }, [onInitializationError]);
+  }, [market, onInitializationError]);
 
   React.useEffect(() => {
     focusOriginRef.current(origin, false);
@@ -641,16 +663,16 @@ export default function DealMapInner({
       .getCanvas()
       .setAttribute(
         "aria-label",
-        `Interactive map showing ${deals.length} mapped deals`,
+        `Interactive ${MARKETS[market].label} map showing ${deals.length} mapped deals`,
       );
-  }, [deals]);
+  }, [deals, market]);
 
   return (
     <div
       ref={containerRef}
       className="size-full"
       data-map-provider="openfreemap"
-      aria-label="Interactive Seattle deals map"
+      aria-label={`Interactive ${MARKETS[market].label} deals map`}
     />
   );
 }

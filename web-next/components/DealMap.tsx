@@ -7,6 +7,7 @@ import type { Deal } from "@/components/deals";
 import { TYPE_STYLE } from "@/components/deal-style";
 import type { SearchOrigin } from "@/lib/location";
 import type { MapViewport } from "@/lib/url-state";
+import type { Market } from "@/lib/markets";
 
 // MapLibre needs `window` and WebGL, so the map is loaded client-only.
 const DealMapInner = dynamic(() => import("@/components/DealMap.inner"), {
@@ -28,6 +29,7 @@ function LegendGlyph({ shape, color }: { shape: string; color: string }) {
 }
 
 interface DealMapProps {
+  market: Market;
   deals: Deal[];
   origin: SearchOrigin | null;
   selectedDealId: string | null;
@@ -39,6 +41,7 @@ interface DealMapProps {
 }
 
 export function DealMap({
+  market,
   deals,
   origin,
   selectedDealId,
@@ -79,6 +82,7 @@ export function DealMap({
         </div>
       ) : (
         <DealMapInner
+          market={market}
           deals={deals}
           origin={origin}
           selectedDealId={selectedDealId}

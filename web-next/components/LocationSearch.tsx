@@ -1,7 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Button, IconButton } from "@astryxdesign/core";
+import {
+  Button,
+  IconButton,
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core";
 import {
   LocateFixed,
   MapPin,
@@ -10,20 +15,29 @@ import {
 } from "lucide-react";
 
 import {
-  isInSeattleArea,
-  SEATTLE_NEIGHBORHOODS,
+  NEIGHBORHOODS_BY_MARKET,
   type SearchOrigin,
 } from "@/lib/location";
+import {
+  isInMarketArea,
+  MARKETS,
+  type Market,
+} from "@/lib/markets";
 
 interface LocationSearchProps {
+  market: Market;
   origin: SearchOrigin | null;
+  onMarketChange: (market: Market) => void;
   onOriginChange: (origin: SearchOrigin | null) => void;
 }
 
 export function LocationSearch({
+  market,
   origin,
+  onMarketChange,
   onOriginChange,
 }: LocationSearchProps) {
+  const marketConfig = MARKETS[market];
   const listId = React.useId();
   const requestRef = React.useRef<AbortController | null>(null);
   const [query, setQuery] = React.useState("");
@@ -50,7 +64,8 @@ export function LocationSearch({
     setPending("search");
     setError(null);
     try {
-      const response = await fetch(`/api/geocode?q=${encodeURIComponent(value)}`, {
+      const params = new URLSearchParams({ q: value, market });
+      const response = await fetch(`/api/geocode?${params}`, {
         signal: controller.signal,
       });
       const payload = (await response.json()) as SearchOrigin & { error?: string };
@@ -76,11 +91,11 @@ export function LocationSearch({
     setError(null);
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        // Gate device coords by the same Seattle bounds the address path enforces;
+        // Gate device coords by the same market bounds the address path enforces;
         // an out-of-area origin would center the map on an empty region with no pins.
-        if (!isInSeattleArea(coords.latitude, coords.longitude)) {
+        if (!isInMarketArea(coords.latitude, coords.longitude, market)) {
           setError(
-            "You appear to be outside the Seattle area. Search a neighborhood or address instead.",
+            `You appear to be outside the ${marketConfig.label} area. Search a neighborhood or address instead.`,
           );
           setPending(null);
           return;
@@ -101,9 +116,26 @@ export function LocationSearch({
     );
   };
 
+  const changeMarket = (next: string) => {
+    requestRef.current?.abort();
+    setQuery("");
+    setPending(null);
+    setError(null);
+    onMarketChange(next as Market);
+  };
+
   return (
     <div className="mb-4">
       <div className="flex flex-wrap items-center gap-2">
+        <SegmentedControl
+          value={market}
+          onChange={changeMarket}
+          label="Choose a city"
+          size="sm"
+        >
+          <SegmentedControlItem value="seattle" label="Seattle" />
+          <SegmentedControlItem value="atlanta" label="Atlanta" />
+        </SegmentedControl>
         <form
           onSubmit={search}
           role="search"
@@ -114,7 +146,7 @@ export function LocationSearch({
             aria-hidden
           />
           <label htmlFor="deal-location-search" className="sr-only">
-            Search by Seattle neighborhood or address
+            Search by {marketConfig.label} neighborhood or address
           </label>
           <input
             id="deal-location-search"
@@ -126,7 +158,7 @@ export function LocationSearch({
             className="min-w-0 flex-1 bg-transparent px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground"
           />
           <datalist id={listId}>
-            {SEATTLE_NEIGHBORHOODS.map((neighborhood) => (
+            {NEIGHBORHOODS_BY_MARKET[market].map((neighborhood) => (
               <option key={neighborhood.name} value={neighborhood.name} />
             ))}
           </datalist>

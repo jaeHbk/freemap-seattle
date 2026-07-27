@@ -10,7 +10,7 @@ from scrapers.publication import evaluate_candidate
 from scrapers.quality import build_quality_report
 from scrapers.sources import places_brand
 
-NOW = datetime(2026, 7, 23, 12, 0, 0)
+NOW = datetime(2026, 7, 27, 12, 0, 0)
 
 
 def _deal(**overrides) -> Deal:
@@ -223,7 +223,11 @@ def test_quality_and_breadth_improve_against_committed_baseline(conn):
     config = load_config("config.toml")
     official_raws = places_brand.fetch(config, now=NOW)
     locations = {
-        raw.raw_location: (47.61, -122.33)
+        raw.raw_location: (
+            (33.7739, -84.4059)
+            if raw.raw_location and "Atlanta, GA" in raw.raw_location
+            else (47.61, -122.33)
+        )
         for raw in official_raws
         if raw.raw_location
     }
@@ -232,7 +236,7 @@ def test_quality_and_breadth_improve_against_committed_baseline(conn):
         FakeGeocoder(locations),
         conn,
         NOW,
-    ) == 44
+    ) == 45
 
     broad_discovery = [
         RawDeal(
@@ -276,13 +280,13 @@ def test_quality_and_breadth_improve_against_committed_baseline(conn):
     assert report["candidate_source_count"] == 5
     assert report["candidate_source_tier_count"] == 4
     assert report["candidate_decisions"] == {
-        "accepted": 44,
+        "accepted": 45,
         "pending": 2,
         "rejected": 2,
     }
-    assert report["published_deal_count"] == 44
+    assert report["published_deal_count"] == 45
     assert report["published_category_count"] == 3
-    assert report["published_map_pins"] == 44
+    assert report["published_map_pins"] == 45
     assert report["minimum_published_quality_score"] == 100
 
     assert report["candidate_source_count"] > legacy["candidate_source_count"]

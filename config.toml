@@ -15,15 +15,14 @@ stale_after_hours = 24
 # configured coverage floors. `optional` sources are reported but do not fail
 # the workflow; Reddit belongs there because a live IP may be rate-limited even
 # though its browser-UA fetch path is functional.
-# Discovery and staging must both match the committed 44-location verified
-# inventory. Clean Census runs produce at least 41 published pins; the 40-pin
-# floor tolerates one transient miss beyond the three reproducible failures
-# while still alerting on additional loss. Candidates that fail the location
+# Discovery and staging must both match the committed 45-location verified
+# Seattle and Atlanta inventory. The pin floor remains at 40 until the Atlanta
+# address has a production Census-run history; candidates that fail the location
 # gate may remain pending without violating the publication-coverage floor.
 [health]
 expected = ["places_brand"]
 optional = ["reddit", "chains", "slickdeals", "local"]
-minimum_deals = { places_brand = 44 }
+minimum_deals = { places_brand = 45 }
 minimum_pins = { places_brand = 40 }
 
 [geocoder]
@@ -35,8 +34,11 @@ min_interval_seconds = 1.0
 max_live_calls = 200
 
 [sources.reddit]
-subreddits = ["Seattle"]
-listing_urls = ["https://www.reddit.com/r/Seattle/.json"]
+subreddits = ["Seattle", "Atlanta"]
+listing_urls = [
+  "https://www.reddit.com/r/Seattle/.json",
+  "https://www.reddit.com/r/Atlanta/.json",
+]
 
 # chains: wired to Tom Douglas Restaurants' happy-hours page — a server-rendered
 # (BentoBox) page whose robots.txt allows it and which needs no secrets. Each
@@ -66,7 +68,7 @@ listing_urls = ["https://www.dealnews.com/"]
 feed_urls = ["https://www.myballard.com/feed/"]
 
 # places_brand: the source that FILLS THE MAP. Each brand's free/BOGO offer fans
-# out to one physical deal per Seattle storefront, geocoded to a pin.
+# out to one physical deal per verified storefront or venue, geocoded to a pin.
 #   provider="config" (default, KEYLESS): storefronts are the curated `locations`
 #     below — provable today with the Census geocoder, no API key.
 #   provider="google": omit `locations`; storefronts are discovered via the Google
@@ -191,4 +193,18 @@ redemption = "Visit during public hours; admission is always free."
 verified_at = "2026-07-23"
 locations = [
   "704 Terry Ave, Seattle, WA 98104",
+]
+
+# Verified 2026-07-27 against Atlanta Contemporary's official visit page, which
+# states "free admission, every day" and lists its current Atlanta address.
+[[sources.places_brand.brands]]
+id = "atlanta-contemporary-free-admission"
+name = "Atlanta Contemporary"
+offer = "Free contemporary art admission every day"
+url = "https://atlantacontemporary.org/visit"
+eligibility = "General admission is free for all visitors."
+redemption = "Visit during public hours; admission is free."
+verified_at = "2026-07-27"
+locations = [
+  "535 Means St NW, Atlanta, GA 30318",
 ]
