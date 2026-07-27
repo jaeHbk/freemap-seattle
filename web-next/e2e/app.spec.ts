@@ -255,7 +255,7 @@ test("list filters and structured deal details survive reload", async ({
   await page.reload();
   await expect(page.getByText("Deal details", { exact: true })).toBeVisible();
   await expect(page.locator("#tab-list")).toHaveAttribute(
-    "aria-selected",
+    "aria-checked",
     "true",
   );
 
@@ -293,7 +293,7 @@ test("details drawer hydrates a deep-linked deal outside the default payload", a
   // would leave the camera on the Seattle default (47.6062) and no-op.
   await page.getByRole("button", { name: "Show on map" }).click();
   await expect(page.locator("#tab-map")).toHaveAttribute(
-    "aria-selected",
+    "aria-checked",
     "true",
   );
   await expect
@@ -442,7 +442,7 @@ test("map, selected deal, location, distance order, and camera stay synchronized
     .poll(() => new URL(page.url()).searchParams.get("origin_label"))
     .toBe("Ballard");
 
-  await page.getByRole("tab", { name: /List/ }).click();
+  await page.getByRole("radio", { name: /List/ }).click();
   const dealIds = await page
     .locator("[data-deal-id]")
     .evaluateAll((elements) =>
