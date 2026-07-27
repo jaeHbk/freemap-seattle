@@ -9,15 +9,17 @@ import {
   parseBbox,
   type Bbox,
 } from "@/lib/transforms";
+import { MARKETS, parseMarket } from "@/lib/markets";
 
 // Reads hit a live DB, so never cache.
 export const dynamic = "force-dynamic";
 
-// GET /api/deals?type=&category=&placement=&bbox=&include_stale=
-// Load deals (bbox -> SQL coord filter, else all), compute status at read time,
-// apply equality filters, and collapse duplicate groups.
+// GET /api/deals?market=&type=&category=&placement=&bbox=&include_stale=
+// Explicit bbox queries take precedence. Otherwise physical deals are scoped to
+// the selected market while online deals remain available in every market.
 export async function GET(request: Request) {
   const sp = new URL(request.url).searchParams;
+  const market = parseMarket(sp.get("market"));
   const type = sp.get("type");
   const category = sp.get("category");
   const placement = sp.get("placement");
@@ -33,8 +35,8 @@ export async function GET(request: Request) {
     throw e;
   }
 
-  // With a bbox, push the coord filter into SQL (excludes coordless deals); else
-  // serve every deal. inclusive bounds; NULL lat/lng never satisfy a comparison.
+  // Push coordinate filters into SQL. Bounds are inclusive and NULL coordinates
+  // never satisfy a physical-market comparison.
   // ORDER BY first_seen, id matches scrapers/db.py so collapseDedup's first-seen
   // primary is deterministic (SQLite gives no order without an explicit ORDER BY).
   const rows = bbox
@@ -44,7 +46,18 @@ export async function GET(request: Request) {
           "ORDER BY first_seen, id",
         [bbox[0], bbox[2], bbox[1], bbox[3]],
       )
-    : await query("SELECT * FROM deals ORDER BY first_seen, id");
+    : await query(
+        "SELECT * FROM deals WHERE placement = 'online' OR " +
+          "(lat IS NOT NULL AND lng IS NOT NULL " +
+          "AND lng >= ? AND lng <= ? AND lat >= ? AND lat <= ?) " +
+          "ORDER BY first_seen, id",
+        [
+          MARKETS[market].bounds.minLng,
+          MARKETS[market].bounds.maxLng,
+          MARKETS[market].bounds.minLat,
+          MARKETS[market].bounds.maxLat,
+        ],
+      );
 
   // The scraper writes naive-LOCAL timestamps (datetime.now(), no tz). Python
   // compares them against a naive-local now. computeStatus reads naive strings as

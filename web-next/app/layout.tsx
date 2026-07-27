@@ -27,25 +27,25 @@ const SITE = "https://freemap-seattle.vercel.app";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
   title: {
-    default: "FreeMap Seattle — Free & BOGO deals near you",
-    template: "%s · FreeMap Seattle",
+    default: "FreeMap — Free & BOGO deals near you",
+    template: "%s · FreeMap",
   },
   description:
-    "A live, interactive map of free and buy-one-get-one deals across Seattle — food, retail, and events, refreshed daily.",
-  keywords: ["Seattle", "free deals", "BOGO", "free food", "free stuff", "map"],
-  applicationName: "FreeMap Seattle",
+    "A live, interactive map of verified free and buy-one-get-one deals across Seattle and Atlanta, refreshed daily.",
+  keywords: ["Seattle", "Atlanta", "free deals", "BOGO", "free food", "free stuff", "map"],
+  applicationName: "FreeMap",
   openGraph: {
     type: "website",
     url: SITE,
-    siteName: "FreeMap Seattle",
-    title: "FreeMap Seattle — Free & BOGO deals near you",
+    siteName: "FreeMap",
+    title: "FreeMap — Free & BOGO deals near you",
     description:
-      "A live, interactive map of free and BOGO deals across Seattle — food, retail, and events.",
+      "A live map of verified free and BOGO deals across Seattle and Atlanta.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "FreeMap Seattle",
-    description: "A live map of free & BOGO deals across Seattle.",
+    title: "FreeMap",
+    description: "A live map of free & BOGO deals across Seattle and Atlanta.",
   },
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon.ico" }],

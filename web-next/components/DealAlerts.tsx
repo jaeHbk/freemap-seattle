@@ -23,6 +23,7 @@ export type AlertPermission =
   | "unsupported";
 
 interface DealAlertsProps {
+  marketLabel: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   enabled: boolean;
@@ -37,6 +38,7 @@ interface DealAlertsProps {
 }
 
 export function DealAlerts({
+  marketLabel,
   open,
   onOpenChange,
   enabled,
@@ -122,7 +124,7 @@ export function DealAlerts({
               >
                 <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
                 <span className="text-muted-foreground">
-                  {origin ? origin.label : "Choose a Seattle location"}
+                  {origin ? origin.label : `Choose a ${marketLabel} location`}
                 </span>
               </div>
 

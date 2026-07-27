@@ -7,20 +7,25 @@ test("deal routes preserve filtering, freshness, bbox, and dedup behavior", asyn
   expect(base.ok()).toBe(true);
   const baseDeals = await base.json();
   expect(baseDeals.map((deal: { id: number }) => deal.id)).toEqual([
-    1, 2, 5, 6,
+    1, 5,
   ]);
   expect(baseDeals[0].alt_urls).toEqual(["https://example.com/r7"]);
 
   const stale = await request.get("/api/deals?include_stale=true");
   expect((await stale.json()).map((deal: { id: number }) => deal.id)).toEqual([
-    3, 1, 2, 5, 6,
+    3, 1, 5,
   ]);
 
   const filtered = await request.get(
-    "/api/deals?type=bogo&category=retail&placement=physical",
+    "/api/deals?market=atlanta&type=free&category=event&placement=physical",
   );
   expect((await filtered.json()).map((deal: { id: number }) => deal.id)).toEqual([
-    2,
+    8,
+  ]);
+
+  const atlanta = await request.get("/api/deals?market=atlanta");
+  expect((await atlanta.json()).map((deal: { id: number }) => deal.id)).toEqual([
+    5, 8,
   ]);
 
   const bbox = await request.get(
@@ -70,7 +75,7 @@ test("detail and metadata routes preserve their HTTP contracts", async ({
   expect(metadata.sources).toEqual([
     {
       source: "places_brand",
-      deal_count: 3,
+      deal_count: 4,
       last_successful_scrape: "2026-07-16T12:00:00",
       latest_run: {
         finished_at: "2026-07-16T12:00:00",

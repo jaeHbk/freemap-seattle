@@ -75,6 +75,15 @@ export default async function globalSetup() {
       "physical", 47.621, -122.321, "Capitol Hill", "ok", fresh, future,
       fresh, fresh, "active",
     ],
+    [
+      8, "places_brand", "p8", "atlanta-art",
+      "Free contemporary art admission",
+      "https://atlantacontemporary.org/visit", "Free admission every day.",
+      "All visitors.", "Visit during public hours.", "2026-07-27T00:00:00",
+      "free", "event", "physical", 33.7739, -84.4059,
+      "535 Means St NW, Atlanta, GA 30318", "ok", fresh, future, fresh, fresh,
+      "active",
+    ],
   ];
 
   await client.batch(
@@ -86,7 +95,7 @@ export default async function globalSetup() {
       "UPDATE deals SET source_tier = 'official', " +
       "verification_status = 'official', evidence_count = 1, " +
       "quality_score = 100, publication_reason = 'current_official_evidence' " +
-      "WHERE id = 2",
+      "WHERE id IN (2, 8)",
     args: [],
   });
   const insertRun = `

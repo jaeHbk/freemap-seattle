@@ -1,6 +1,11 @@
 import type { FilterState } from "@/components/deals";
 import type { ViewValue } from "@/components/ViewTabs";
 import type { SearchOrigin } from "@/lib/location";
+import {
+  DEFAULT_MARKET,
+  parseMarket,
+  type Market,
+} from "./markets.ts";
 
 export interface MapViewport {
   lat: number;
@@ -9,6 +14,7 @@ export interface MapViewport {
 }
 
 export interface AppUrlState {
+  market: Market;
   view: ViewValue;
   filters: FilterState;
   origin: SearchOrigin | null;
@@ -18,6 +24,7 @@ export interface AppUrlState {
 }
 
 export const DEFAULT_URL_STATE: AppUrlState = {
+  market: DEFAULT_MARKET,
   view: "map",
   filters: {
     type: "",
@@ -32,6 +39,7 @@ export const DEFAULT_URL_STATE: AppUrlState = {
 };
 
 const OWNED_PARAMS = [
+  "market",
   "view",
   "type",
   "category",
@@ -77,6 +85,7 @@ function dealId(value: string | null): string | null {
 }
 
 export function parseUrlState(params: URLSearchParams): AppUrlState {
+  const market = parseMarket(params.get("market"));
   const originCoordinates = coordinates(params.get("origin"));
   const originLabel = params.get("origin_label")?.trim().slice(0, 120);
   const origin =
@@ -106,6 +115,7 @@ export function parseUrlState(params: URLSearchParams): AppUrlState {
 
   const selectedDealId = dealId(params.get("deal"));
   return {
+    market,
     view: enumValue(params.get("view"), ["map", "list"] as const, "map"),
     filters: {
       type: enumValue(
@@ -143,6 +153,7 @@ export function serializeUrlState(
   const params = new URLSearchParams(existing);
   for (const key of OWNED_PARAMS) params.delete(key);
 
+  if (state.market !== DEFAULT_MARKET) params.set("market", state.market);
   if (state.view !== "map") params.set("view", state.view);
   if (state.filters.type) params.set("type", state.filters.type);
   if (state.filters.category) params.set("category", state.filters.category);

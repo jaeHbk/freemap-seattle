@@ -163,6 +163,23 @@ def test_extract_location_ignores_substring_false_positives(monkeypatch):
     assert by_id["real1"].raw_location is not None
 
 
+def test_extract_location_recognizes_atlanta_neighborhoods():
+    assert (
+        reddit._extract_location(
+            "Free coffee in Old Fourth Ward",
+            "Pickup is near Ponce City Market in Atlanta.",
+        )
+        is not None
+    )
+    assert (
+        reddit._extract_location(
+            "Free online workshop",
+            "Open to anyone joining from home.",
+        )
+        is None
+    )
+
+
 def test_fetch_degrades_on_403(monkeypatch):
     # Reddit's documented failure mode: HTTP 403 to a client it dislikes. The
     # source must degrade to 0 found WITHOUT raising, mirroring a real 403 where

@@ -1,4 +1,9 @@
 import type { Deal } from "@/components/deals";
+import {
+  isInMarketArea,
+  MARKETS,
+  type Market,
+} from "./markets.ts";
 
 export interface SearchOrigin {
   lat: number;
@@ -7,7 +12,7 @@ export interface SearchOrigin {
   source: "search" | "geolocation";
 }
 
-interface Neighborhood {
+export interface Neighborhood {
   name: string;
   aliases?: string[];
   lat: number;
@@ -38,25 +43,42 @@ export const SEATTLE_NEIGHBORHOODS: readonly Neighborhood[] = [
   { name: "West Seattle", lat: 47.5611, lng: -122.3868 },
 ] as const;
 
-const SEATTLE_BOUNDS = {
-  minLat: 47.45,
-  maxLat: 47.75,
-  minLng: -122.46,
-  maxLng: -122.2,
+export const ATLANTA_NEIGHBORHOODS: readonly Neighborhood[] = [
+  { name: "Buckhead", lat: 33.8381, lng: -84.3797 },
+  { name: "Downtown", lat: 33.7557, lng: -84.3884 },
+  { name: "East Atlanta Village", aliases: ["EAV"], lat: 33.7407, lng: -84.3452 },
+  { name: "Grant Park", lat: 33.7372, lng: -84.3681 },
+  { name: "Inman Park", lat: 33.7576, lng: -84.3622 },
+  { name: "Little Five Points", aliases: ["L5P"], lat: 33.7651, lng: -84.3499 },
+  { name: "Midtown", lat: 33.7833, lng: -84.3831 },
+  { name: "Old Fourth Ward", aliases: ["O4W"], lat: 33.7641, lng: -84.3713 },
+  { name: "Virginia-Highland", aliases: ["Virginia Highland", "VaHi"], lat: 33.7821, lng: -84.3537 },
+  { name: "West Midtown", lat: 33.7868, lng: -84.4113 },
+] as const;
+
+export const NEIGHBORHOODS_BY_MARKET: Record<
+  Market,
+  readonly Neighborhood[]
+> = {
+  seattle: SEATTLE_NEIGHBORHOODS,
+  atlanta: ATLANTA_NEIGHBORHOODS,
 };
 
 function normalizePlace(value: string): string {
   return value
     .toLowerCase()
-    .replace(/\b(seattle|washington|wa|usa)\b/g, "")
+    .replace(/\b(seattle|washington|atlanta|georgia|wa|ga|usa)\b/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
-export function resolveNeighborhood(query: string): SearchOrigin | null {
+export function resolveNeighborhood(
+  query: string,
+  market: Market,
+): SearchOrigin | null {
   const normalized = normalizePlace(query);
   if (!normalized) return null;
-  const match = SEATTLE_NEIGHBORHOODS.find((neighborhood) =>
+  const match = NEIGHBORHOODS_BY_MARKET[market].find((neighborhood) =>
     [neighborhood.name, ...(neighborhood.aliases ?? [])].some(
       (name) => normalizePlace(name) === normalized,
     ),
@@ -71,12 +93,7 @@ export function resolveNeighborhood(query: string): SearchOrigin | null {
 }
 
 export function isInSeattleArea(lat: number, lng: number): boolean {
-  return (
-    lat >= SEATTLE_BOUNDS.minLat &&
-    lat <= SEATTLE_BOUNDS.maxLat &&
-    lng >= SEATTLE_BOUNDS.minLng &&
-    lng <= SEATTLE_BOUNDS.maxLng
-  );
+  return isInMarketArea(lat, lng, "seattle");
 }
 
 export function distanceMiles(
@@ -127,7 +144,10 @@ type CensusPayload = {
   };
 };
 
-export function parseCensusLocation(payload: CensusPayload): SearchOrigin | null {
+export function parseCensusLocation(
+  payload: CensusPayload,
+  market: Market,
+): SearchOrigin | null {
   const match = payload.result?.addressMatches?.[0];
   const lat = match?.coordinates?.y;
   const lng = match?.coordinates?.x;
@@ -136,14 +156,14 @@ export function parseCensusLocation(payload: CensusPayload): SearchOrigin | null
     typeof lng !== "number" ||
     !Number.isFinite(lat) ||
     !Number.isFinite(lng) ||
-    !isInSeattleArea(lat, lng)
+    !isInMarketArea(lat, lng, market)
   ) {
     return null;
   }
   return {
     lat,
     lng,
-    label: match?.matchedAddress || "Searched location",
+    label: match?.matchedAddress || `Searched location in ${MARKETS[market].label}`,
     source: "search",
   };
 }

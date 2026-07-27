@@ -2,25 +2,32 @@ import {
   parseCensusLocation,
   resolveNeighborhood,
 } from "@/lib/location";
+import { MARKETS, parseMarket } from "@/lib/markets";
 
 const CENSUS_GEOCODER_URL =
   "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress";
 
 export async function GET(request: Request) {
-  const query = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+  const searchParams = new URL(request.url).searchParams;
+  const market = parseMarket(searchParams.get("market"));
+  const marketConfig = MARKETS[market];
+  const query = searchParams.get("q")?.trim() ?? "";
   if (query.length < 2 || query.length > 160) {
     return Response.json(
-      { error: "Enter a Seattle neighborhood or street address." },
+      {
+        error: `Enter a ${marketConfig.label} neighborhood or street address.`,
+      },
       { status: 400 },
     );
   }
 
-  const neighborhood = resolveNeighborhood(query);
+  const neighborhood = resolveNeighborhood(query, market);
   if (neighborhood) return Response.json(neighborhood);
 
-  const address = /\bseattle\b/i.test(query)
+  const marketName = new RegExp(`\\b${marketConfig.label}\\b`, "i");
+  const address = marketName.test(query)
     ? query
-    : `${query}, Seattle, WA`;
+    : `${query}, ${marketConfig.addressSuffix}`;
   const params = new URLSearchParams({
     address,
     benchmark: "Public_AR_Current",
@@ -33,10 +40,12 @@ export async function GET(request: Request) {
       next: { revalidate: 86_400 },
     });
     if (!response.ok) throw new Error(`Census geocoder returned ${response.status}`);
-    const location = parseCensusLocation(await response.json());
+    const location = parseCensusLocation(await response.json(), market);
     if (!location) {
       return Response.json(
-        { error: "No Seattle location matched that search." },
+        {
+          error: `No ${marketConfig.label} location matched that search.`,
+        },
         { status: 404 },
       );
     }

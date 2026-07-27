@@ -64,6 +64,11 @@ import {
   type AppUrlState,
   type MapViewport,
 } from "@/lib/url-state";
+import {
+  DEFAULT_MARKET,
+  MARKETS,
+  type Market,
+} from "@/lib/markets";
 import { cn } from "@/lib/utils";
 
 type LoadState =
@@ -77,14 +82,16 @@ interface MetaSource {
 
 const ALERT_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
-async function fetchUnfilteredDeals(): Promise<Deal[]> {
-  const response = await fetch("/api/deals");
+async function fetchUnfilteredDeals(market: Market): Promise<Deal[]> {
+  const query = buildQuery(EMPTY_FILTERS, market);
+  const response = await fetch(`/api/deals${query ? `?${query}` : ""}`);
   if (!response.ok) throw new Error(`Server responded ${response.status}`);
   const data: unknown = await response.json();
   return Array.isArray(data) ? (data as Deal[]) : [];
 }
 
 export default function Home() {
+  const [market, setMarket] = React.useState<Market>(DEFAULT_MARKET);
   const [filters, setFilters] = React.useState<FilterState>(EMPTY_FILTERS);
   const [view, setView] = React.useState<ViewValue>("map");
   const [deals, setDeals] = React.useState<Deal[]>([]);
@@ -120,6 +127,7 @@ export default function Home() {
   const automaticAlertCheckStarted = React.useRef(false);
 
   const applyUrlState = React.useCallback((next: AppUrlState) => {
+    setMarket(next.market);
     setView(next.view);
     setFilters(next.filters);
     setOrigin(next.origin);
@@ -145,6 +153,7 @@ export default function Home() {
     const params = serializeUrlState(
       {
         view,
+        market,
         filters,
         origin,
         selectedDealId,
@@ -163,6 +172,7 @@ export default function Home() {
     detailsOpen,
     filters,
     mapViewport,
+    market,
     origin,
     selectedDealId,
     urlReady,
@@ -179,7 +189,7 @@ export default function Home() {
     // effect; the loading flag is set once per request, not in a render loop.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({ kind: "loading" });
-    const qs = buildQuery(filters);
+    const qs = buildQuery(filters, market);
     fetch(`/api/deals${qs ? `?${qs}` : ""}`, { signal: ctrl.signal })
       .then((r) => {
         if (!r.ok) throw new Error(`Server responded ${r.status}`);
@@ -197,7 +207,7 @@ export default function Home() {
         });
       });
     return () => ctrl.abort();
-  }, [filters, reloadKey, urlReady]);
+  }, [filters, market, reloadKey, urlReady]);
 
   // Freshness badge — best-effort, never blocks the UI.
   React.useEffect(() => {
@@ -377,6 +387,21 @@ export default function Home() {
       }));
     }
   }, []);
+  const changeMarket = React.useCallback((next: Market) => {
+    if (next === market) return;
+    const config = MARKETS[next];
+    setMarket(next);
+    setOrigin(null);
+    setSelectedDealId(null);
+    setDetailsOpen(false);
+    setFetchedDeal(null);
+    setAlertError(null);
+    setMapViewport({
+      lat: config.center[0],
+      lng: config.center[1],
+      zoom: config.zoom,
+    });
+  }, [market]);
   const changeMapViewport = React.useCallback((next: MapViewport) => {
     setMapViewport((current) => {
       if (
@@ -393,7 +418,9 @@ export default function Home() {
 
   const checkForNewDeals = React.useCallback(async () => {
     if (!origin) {
-      setAlertError("Choose a Seattle location before checking for deals.");
+      setAlertError(
+        `Choose a ${MARKETS[market].label} location before checking for deals.`,
+      );
       return;
     }
     if (
@@ -407,7 +434,7 @@ export default function Home() {
     setAlertPending(true);
     setAlertError(null);
     try {
-      const currentDeals = await fetchUnfilteredDeals();
+      const currentDeals = await fetchUnfilteredDeals(market);
       const unseen = unseenNearbyDeals(
         currentDeals,
         alertPreferences.seenDealKeys,
@@ -449,6 +476,7 @@ export default function Home() {
     alertPreferences.radiusMiles,
     alertPreferences.seenDealKeys,
     origin,
+    market,
   ]);
 
   const changeAlertsEnabled = React.useCallback(
@@ -459,7 +487,9 @@ export default function Home() {
         return;
       }
       if (!origin) {
-        setAlertError("Choose a Seattle location before enabling alerts.");
+        setAlertError(
+          `Choose a ${MARKETS[market].label} location before enabling alerts.`,
+        );
         return;
       }
       if (!("Notification" in window)) {
@@ -481,7 +511,7 @@ export default function Home() {
           return;
         }
 
-        const baselineDeals = await fetchUnfilteredDeals();
+        const baselineDeals = await fetchUnfilteredDeals(market);
         automaticAlertCheckStarted.current = true;
         setAlertPreferences((current) => ({
           ...current,
@@ -499,7 +529,7 @@ export default function Home() {
         setAlertPending(false);
       }
     },
-    [origin],
+    [market, origin],
   );
 
   React.useEffect(() => {
@@ -541,7 +571,7 @@ export default function Home() {
             <TopNavHeading
               logo={<NavIcon icon={<MapPinned />} />}
               heading="FreeMap"
-              subheading="Seattle"
+              subheading={MARKETS[market].label}
               headingHref="/"
             />
           }
@@ -612,7 +642,7 @@ export default function Home() {
       }
     >
       <Heading level={1} className="sr-only">
-        FreeMap Seattle, free and BOGO deals
+        FreeMap {MARKETS[market].label}, free and BOGO deals
       </Heading>
 
       <div className="mx-auto flex h-full w-full max-w-[1440px] gap-5 px-4 py-4 sm:px-5">
@@ -637,7 +667,12 @@ export default function Home() {
         </aside>
 
         <div id="main" className="flex min-w-0 flex-1 flex-col">
-          <LocationSearch origin={origin} onOriginChange={changeOrigin} />
+          <LocationSearch
+            market={market}
+            origin={origin}
+            onMarketChange={changeMarket}
+            onOriginChange={changeOrigin}
+          />
           {state.kind === "error" ? (
             <ErrorPanel message={state.message} onRetry={() => setReloadKey((k) => k + 1)} />
           ) : state.kind === "loading" ? (
@@ -651,6 +686,7 @@ export default function Home() {
               className="h-[calc(100dvh-8.5rem)] min-h-[420px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             >
               <DealMap
+                market={market}
                 deals={mapDeals}
                 origin={origin}
                 selectedDealId={selectedDealId}
@@ -734,6 +770,7 @@ export default function Home() {
         onShowOnMap={showDealOnMap}
       />
       <DealAlerts
+        marketLabel={MARKETS[market].label}
         open={alertsOpen}
         onOpenChange={setAlertsOpen}
         enabled={alertPreferences.enabled}

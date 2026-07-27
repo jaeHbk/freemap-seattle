@@ -96,7 +96,7 @@ def test_committed_config_toml_loads_and_sources_reachable():
     expected, optional = load_health_baseline("config.toml")
     assert expected == ["places_brand"]
     assert optional == ["reddit", "chains", "slickdeals", "local"]
-    assert load_minimum_deals("config.toml") == {"places_brand": 44}
+    assert load_minimum_deals("config.toml") == {"places_brand": 45}
     assert load_minimum_pins("config.toml") == {"places_brand": 40}
 
 
@@ -105,17 +105,19 @@ def test_committed_brand_offers_are_scoped_and_cover_multiple_brands():
     raw_deals = places_brand.fetch(cfg)
     deals = [classify(raw) for raw in raw_deals]
 
-    assert len(deals) == 44
+    assert len(deals) == 45
     assert {
         raw.raw["brand"] for raw in raw_deals
     } == {
         "Chipotle",
+        "Atlanta Contemporary",
         "Frye Art Museum",
         "MOD Pizza",
         "Starbucks",
         "Ulta Beauty",
     }
     assert {
+        "535 Means St NW, Atlanta, GA 30318",
         "1700 7th Ave, Seattle, WA 98101",
         "1962 1st Ave S, Seattle, WA 98134",
         "2650 NE 49th St, Seattle, WA 98105",
